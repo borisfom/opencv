@@ -4946,6 +4946,7 @@ void cv::remap( InputArray _src, OutputArray _dst,
 
     CV_OVX_RUN(
         src.type() == CV_8UC1 && dst.type() == CV_8UC1 &&
+        !ovx::skipSmallImages<VX_KERNEL_REMAP>(src.cols, src.rows) &&
         (borderType& ~BORDER_ISOLATED) == BORDER_CONSTANT &&
         ((map1.type() == CV_32FC2 && map2.empty() && map1.size == dst.size) ||
          (map1.type() == CV_32FC1 && map2.type() == CV_32FC1 && map1.size == dst.size && map2.size == dst.size) ||
@@ -5019,10 +5020,14 @@ void cv::remap( InputArray _src, OutputArray _dst,
     {
         if( interpolation == INTER_LINEAR )
             ifunc = linear_tab[depth];
-        else if( interpolation == INTER_CUBIC )
+        else if( interpolation == INTER_CUBIC ){
             ifunc = cubic_tab[depth];
-        else if( interpolation == INTER_LANCZOS4 )
+            CV_Assert( _src.channels() <= 4 );
+        }
+        else if( interpolation == INTER_LANCZOS4 ){
             ifunc = lanczos4_tab[depth];
+            CV_Assert( _src.channels() <= 4 );
+        }
         else
             CV_Error( CV_StsBadArg, "Unknown interpolation method" );
         CV_Assert( ifunc != 0 );
@@ -5523,6 +5528,9 @@ public:
         const int AB_BITS = MAX(10, (int)INTER_BITS);
         const int AB_SCALE = 1 << AB_BITS;
         int round_delta = interpolation == INTER_NEAREST ? AB_SCALE/2 : AB_SCALE/INTER_TAB_SIZE/2, x, y, x1, y1;
+    #if CV_AVX2
+        bool useAVX2 = checkHardwareSupport(CV_CPU_AVX2);
+    #endif
     #if CV_SSE2
         bool useSSE2 = checkHardwareSupport(CV_CPU_SSE2);
     #endif
@@ -5603,6 +5611,42 @@ public:
                     {
                         short* alpha = A + y1*bw;
                         x1 = 0;
+                    #if CV_AVX2
+                        if ( useAVX2 )
+                        {
+                            __m256i fxy_mask = _mm256_set1_epi32(INTER_TAB_SIZE - 1);
+                            __m256i XX = _mm256_set1_epi32(X0), YY = _mm256_set1_epi32(Y0);
+                            for( ; x1 <= bw - 16; x1 += 16 )
+                            {
+                                __m256i tx0, tx1, ty0, ty1;
+                                tx0 = _mm256_add_epi32(_mm256_loadu_si256((const __m256i*)(adelta + x + x1)), XX);
+                                ty0 = _mm256_add_epi32(_mm256_loadu_si256((const __m256i*)(bdelta + x + x1)), YY);
+                                tx1 = _mm256_add_epi32(_mm256_loadu_si256((const __m256i*)(adelta + x + x1 + 8)), XX);
+                                ty1 = _mm256_add_epi32(_mm256_loadu_si256((const __m256i*)(bdelta + x + x1 + 8)), YY);
+
+                                tx0 = _mm256_srai_epi32(tx0, AB_BITS - INTER_BITS);
+                                ty0 = _mm256_srai_epi32(ty0, AB_BITS - INTER_BITS);
+                                tx1 = _mm256_srai_epi32(tx1, AB_BITS - INTER_BITS);
+                                ty1 = _mm256_srai_epi32(ty1, AB_BITS - INTER_BITS);
+
+                                __m256i fx_ = _mm256_packs_epi32(_mm256_and_si256(tx0, fxy_mask),
+                                                                 _mm256_and_si256(tx1, fxy_mask));
+                                __m256i fy_ = _mm256_packs_epi32(_mm256_and_si256(ty0, fxy_mask),
+                                                                 _mm256_and_si256(ty1, fxy_mask));
+                                tx0 = _mm256_packs_epi32(_mm256_srai_epi32(tx0, INTER_BITS),
+                                                         _mm256_srai_epi32(tx1, INTER_BITS));
+                                ty0 = _mm256_packs_epi32(_mm256_srai_epi32(ty0, INTER_BITS),
+                                                         _mm256_srai_epi32(ty1, INTER_BITS));
+                                fx_ = _mm256_adds_epi16(fx_, _mm256_slli_epi16(fy_, INTER_BITS));
+                                fx_ = _mm256_permute4x64_epi64(fx_, (3 << 6) + (1 << 4) + (2 << 2) + 0);
+
+                                _mm256_storeu_si256((__m256i*)(xy + x1*2), _mm256_unpacklo_epi16(tx0, ty0));
+                                _mm256_storeu_si256((__m256i*)(xy + x1*2 + 16), _mm256_unpackhi_epi16(tx0, ty0));
+                                _mm256_storeu_si256((__m256i*)(alpha + x1), fx_);
+                            }
+                            _mm256_zeroupper();
+                        }
+                    #endif
                     #if CV_SSE2
                         if( useSSE2 )
                         {
@@ -5964,6 +6008,10 @@ void cv::warpAffine( InputArray _src, OutputArray _dst,
 {
     CV_INSTRUMENT_REGION()
 
+    int interpolation = flags & INTER_MAX;
+    CV_Assert( _src.channels() <= 4 || (interpolation != INTER_LANCZOS4 &&
+                                        interpolation != INTER_CUBIC) );
+
     CV_OCL_RUN(_src.dims() <= 2 && _dst.isUMat() &&
                _src.cols() <= SHRT_MAX && _src.rows() <= SHRT_MAX,
                ocl_warpTransform_cols4(_src, _dst, _M0, dsize, flags, borderType,
@@ -5982,7 +6030,6 @@ void cv::warpAffine( InputArray _src, OutputArray _dst,
 
     double M[6];
     Mat matM(2, 3, CV_64F, M);
-    int interpolation = flags & INTER_MAX;
     if( interpolation == INTER_AREA )
         interpolation = INTER_LINEAR;
 

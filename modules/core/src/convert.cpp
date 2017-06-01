@@ -4862,6 +4862,9 @@ static bool _openvx_cvt(const T* src, size_t sstep,
 
     int srcType = DataType<T>::type, dstType = DataType<DT>::type;
 
+    if (ovx::skipSmallImages<VX_KERNEL_CONVERTDEPTH>(imgSize.width, imgSize.height))
+        return false;
+
     try
     {
         Context context = ovx::getOpenVXContext();
@@ -5371,6 +5374,34 @@ static bool ocl_convertScaleAbs( InputArray _src, OutputArray _dst, double alpha
     return k.run(2, globalsize, NULL, false);
 }
 
+static bool ocl_convertFp16( InputArray _src, OutputArray _dst, int ddepth )
+{
+    int type = _src.type(), cn = CV_MAT_CN(type);
+
+    _dst.createSameSize( _src, CV_MAKETYPE(ddepth, cn) );
+    int kercn = 1;
+    int rowsPerWI = 1;
+    String build_opt = format("-D HALF_SUPPORT -D dstT=%s -D srcT=%s -D rowsPerWI=%d%s",
+                           ddepth == CV_16S ? "half" : "float",
+                           ddepth == CV_16S ? "float" : "half",
+                           rowsPerWI,
+                           ddepth == CV_16S ? " -D FLOAT_TO_HALF " : "");
+    ocl::Kernel k("convertFp16", ocl::core::halfconvert_oclsrc, build_opt);
+    if (k.empty())
+        return false;
+
+    UMat src = _src.getUMat();
+    UMat dst = _dst.getUMat();
+
+    ocl::KernelArg srcarg = ocl::KernelArg::ReadOnlyNoSize(src),
+            dstarg = ocl::KernelArg::WriteOnly(dst, cn, kercn);
+
+    k.args(srcarg, dstarg);
+
+    size_t globalsize[2] = { (size_t)src.cols * cn / kercn, ((size_t)src.rows + rowsPerWI - 1) / rowsPerWI };
+    return k.run(2, globalsize, NULL, false);
+}
+
 #endif
 
 }
@@ -5411,10 +5442,8 @@ void cv::convertFp16( InputArray _src, OutputArray _dst)
 {
     CV_INSTRUMENT_REGION()
 
-    Mat src = _src.getMat();
     int ddepth = 0;
-
-    switch( src.depth() )
+    switch( _src.depth() )
     {
     case CV_32F:
         ddepth = CV_16S;
@@ -5426,6 +5455,11 @@ void cv::convertFp16( InputArray _src, OutputArray _dst)
         CV_Error(Error::StsUnsupportedFormat, "Unsupported input depth");
         return;
     }
+
+    CV_OCL_RUN(_src.dims() <= 2 && _dst.isUMat(),
+               ocl_convertFp16(_src, _dst, ddepth))
+
+    Mat src = _src.getMat();
 
     int type = CV_MAKETYPE(ddepth, src.channels());
     _dst.create( src.dims, src.size, type );
@@ -5933,7 +5967,7 @@ void cv::LUT( InputArray _src, InputArray _lut, OutputArray _dst )
     _dst.create(src.dims, src.size, CV_MAKETYPE(_lut.depth(), cn));
     Mat dst = _dst.getMat();
 
-    CV_OVX_RUN(true,
+    CV_OVX_RUN(!ovx::skipSmallImages<VX_KERNEL_TABLE_LOOKUP>(src.cols, src.rows),
                openvx_LUT(src, dst, lut))
 
 #if !IPP_DISABLE_PERF_LUT

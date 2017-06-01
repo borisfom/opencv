@@ -849,6 +849,9 @@ namespace
                 return false;
             if (maxLevel < 0 || winSize.width <= 2 || winSize.height <= 2)
                 return false;
+            if (winSize.width < 16 || winSize.height < 16 ||
+                winSize.width > 24 || winSize.height > 24)
+                return false;
             calcPatchSize();
             if (patch.x <= 0 || patch.x >= 6 || patch.y <= 0 || patch.y >= 6)
                 return false;
@@ -1072,6 +1075,9 @@ namespace
         Mat prevImgMat = _prevImg.getMat(), nextImgMat = _nextImg.getMat();
 
         if(prevImgMat.type() != CV_8UC1 || nextImgMat.type() != CV_8UC1)
+            return false;
+
+        if (ovx::skipSmallImages<VX_KERNEL_OPTICAL_FLOW_PYR_LK>(prevImgMat.cols, prevImgMat.rows))
             return false;
 
         CV_Assert(prevImgMat.size() == nextImgMat.size());
