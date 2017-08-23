@@ -232,8 +232,37 @@ template<> struct V_TypeTraits<int64>
     static uint_type reinterpret_uint(value_type x) { return (uint_type)x; }
     static value_type reinterpret_from_int(int_type x) { return (value_type)x; }
 };
+#if CV_FP16_TYPE
+        template<> struct V_TypeTraits<half>
+        {
+            typedef half value_type;
+            typedef short int_type;
+            typedef unsigned short uint_type;
+            typedef half abs_type;
+            typedef half sum_type;
 
+            typedef float w_type;
 
+            static int_type reinterpret_int(value_type x)
+            {
+                Cv16suf u;
+                u.hf = x;
+                return u.i;
+            }
+            static uint_type reinterpet_uint(value_type x)
+            {
+                Cv32suf u;
+                u.f = x;
+                return u.u;
+            }
+            static value_type reinterpret_from_int(int_type x)
+            {
+                Cv32suf u;
+                u.i = x;
+                return u.hf;
+            }
+        };
+#endif
 template<> struct V_TypeTraits<float>
 {
     typedef float value_type;

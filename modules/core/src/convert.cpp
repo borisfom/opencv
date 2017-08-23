@@ -4415,11 +4415,8 @@ struct Cvt_SIMD<float, int>
 #endif
 
 // template for FP16 HW conversion function
-template<typename T, typename DT> static void
-cvtScaleHalf_( const T* src, size_t sstep, DT* dst, size_t dstep, Size size);
-
 template<> void
-cvtScaleHalf_<float, short>( const float* src, size_t sstep, short* dst, size_t dstep, Size size )
+cvtScaleHalf_<float, float16_t>( const float* src, size_t sstep, float16_t* dst, size_t dstep, Size size )
 {
     CV_CPU_CALL_FP16(cvtScaleHalf_SIMD32f16f, (src, sstep, dst, dstep, size));
 
@@ -4438,7 +4435,7 @@ cvtScaleHalf_<float, short>( const float* src, size_t sstep, short* dst, size_t 
 }
 
 template<> void
-cvtScaleHalf_<short, float>( const short* src, size_t sstep, float* dst, size_t dstep, Size size )
+cvtScale_<float16_t, float>( const float16_t* src, size_t sstep, float* dst, size_t dstep, Size size )
 {
     CV_CPU_CALL_FP16(cvtScaleHalf_SIMD16f32f, (src, sstep, dst, dstep, size));
 
@@ -5898,6 +5895,83 @@ CV_IMPL void cvNormalize( const CvArr* srcarr, CvArr* dstarr,
         mask = cv::cvarrToMat(maskarr);
     CV_Assert( dst.size() == src.size() && src.channels() == dst.channels() );
     cv::normalize( src, dst, a, b, norm_type, dst.type(), mask );
+}
+
+short convertFp16SW(float fp32)
+{
+    // Fp32 -> Fp16
+    Cv32suf a;
+    a.f = fp32;
+    int exponent    = a.fmt.exponent - kBiasFp32Exponent;
+    int significand = a.fmt.significand;
+
+    Cv16suf result;
+    result.i = 0;
+    unsigned int absolute = a.i & 0x7fffffff;
+    if( 0x477ff000 <= absolute )
+    {
+        // Inf in Fp16
+        result.i = result.i | 0x7C00;
+        if( exponent == 128 && significand != 0 )
+        {
+            // NaN
+            result.i = (short)( result.i | 0x200 | ( significand >> kShiftSignificand ) );
+        }
+    }
+    else if ( absolute < 0x33000001 )
+    {
+        // too small for fp16
+        result.i = 0;
+    }
+    else if ( absolute < 0x387fe000 )
+    {
+        // subnormal in Fp16
+        int fp16Significand = significand | 0x800000;
+        int bitShift = (-exponent) - 1;
+        fp16Significand = fp16Significand >> bitShift;
+
+        // special cases to round up
+        bitShift = exponent + 24;
+        int threshold = ( ( 0x400000 >> bitShift ) | ( ( ( significand & ( 0x800000 >> bitShift ) ) >> ( 126 - a.fmt.exponent ) ) ^ 1 ) );
+        if( absolute == 0x33c00000 )
+        {
+            result.i = 2;
+        }
+        else
+        {
+            if( threshold <= ( significand & ( 0xffffff >> ( exponent + 25 ) ) ) )
+            {
+                fp16Significand++;
+            }
+            result.i = (short)fp16Significand;
+        }
+    }
+    else
+    {
+        // usual situation
+        // exponent
+        result.fmt.exponent = ( exponent + kBiasFp16Exponent );
+
+        // significand;
+        short fp16Significand = (short)(significand >> kShiftSignificand);
+        result.fmt.significand = fp16Significand;
+
+        // special cases to round up
+        short lsb10bitsFp32 = (significand & 0x1fff);
+        short threshold = 0x1000 + ( ( fp16Significand & 0x1 ) ? 0 : 1 );
+        if( threshold <= lsb10bitsFp32 )
+        {
+            result.i++;
+        }
+        else if ( fp16Significand == kMaskFp16Significand && exponent == -15)
+        {
+            result.i++;
+        }
+    }
+
+    // sign bit
+    result.fmt.sign = a.fmt.sign;
+    return result.i;
 }
 
 /* End of file. */

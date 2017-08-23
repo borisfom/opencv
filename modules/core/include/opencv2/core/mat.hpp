@@ -284,6 +284,7 @@ public:
         DEPTH_MASK_16U = 1 << CV_16U,
         DEPTH_MASK_16S = 1 << CV_16S,
         DEPTH_MASK_32S = 1 << CV_32S,
+        DEPTH_MASK_16F = 1 << CV_16F,
         DEPTH_MASK_32F = 1 << CV_32F,
         DEPTH_MASK_64F = 1 << CV_64F,
         DEPTH_MASK_ALL = (DEPTH_MASK_64F<<1)-1,

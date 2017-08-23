@@ -197,6 +197,7 @@ enum CpuFeatures {
 #if defined __ARM_FP16_FORMAT_IEEE \
     && !defined __CUDACC__
 #  define CV_FP16_TYPE 1
+typedef __fp16 half;
 #else
 #  define CV_FP16_TYPE 0
 #endif
@@ -204,8 +205,12 @@ enum CpuFeatures {
 typedef union Cv16suf
 {
     short i;
+    unsigned short u;
 #if CV_FP16_TYPE
     __fp16 h;
+#endif
+#if CUDA_VERSION
+    half  hf;
 #endif
     struct _fp16Format
     {
@@ -215,6 +220,22 @@ typedef union Cv16suf
     } fmt;
 }
 Cv16suf;
+
+namespace cv {
+    struct /* CV_EXPORTS */ float16_t {
+        explicit float16_t(float x)
+        {
+
+        }
+
+        operator float() const
+        {
+
+        }
+
+        unsigned short x;
+    };
+}
 
 typedef union Cv32suf
 {

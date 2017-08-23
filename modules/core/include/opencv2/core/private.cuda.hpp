@@ -55,17 +55,6 @@
 
 #include "opencv2/core/cuda.hpp"
 
-#ifdef HAVE_CUDA
-#  include <cuda.h>
-#  include <cuda_runtime.h>
-#  if defined (__GNUC__)
-#   pragma GCC diagnostic push
-#   pragma GCC diagnostic ignored "-Wstrict-aliasing"
-#   include <cuda_fp16.h>
-#   pragma GCC diagnostic pop
-#  else
-#   include <cuda_fp16.h>
-#  endif /* __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6) */
 #  include <npp.h>
 #  include "opencv2/core/cuda_stream_accessor.hpp"
 #  include "opencv2/core/cuda/common.hpp"
@@ -81,7 +70,6 @@
 #  if defined(CUDA_ARCH_BIN_OR_PTX_10)
 #    error "OpenCV CUDA module doesn't support NVIDIA compute capability 1.0"
 #  endif
-#endif
 
 //! @cond IGNORED
 
@@ -128,6 +116,7 @@ namespace cv { namespace cuda
     template<> struct NPPTypeTraits<CV_16U> { typedef Npp16u npp_type; };
     template<> struct NPPTypeTraits<CV_16S> { typedef Npp16s npp_type; };
     template<> struct NPPTypeTraits<CV_32S> { typedef Npp32s npp_type; };
+        template<> struct NPPTypeTraits<CV_16F> { typedef half npp_type; };
     template<> struct NPPTypeTraits<CV_32F> { typedef Npp32f npp_type; };
     template<> struct NPPTypeTraits<CV_64F> { typedef Npp64f npp_type; };
 
