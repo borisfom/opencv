@@ -106,7 +106,7 @@ if(CUDA_FOUND)
       if(${CUDA_VERSION} VERSION_LESS "9.0")
         set(__cuda_arch_bin "2.0 3.0 3.5 3.7 5.0 5.2 6.0 6.1")
       else()
-        set(__cuda_arch_bin "6.0 6.1 7.0")
+        set(__cuda_arch_bin "3.0 3.5 3.7 5.0 5.2 6.0 6.1 7.0")
       endif()
     endif()
   endif()
@@ -222,7 +222,7 @@ if(CUDA_FOUND)
     endif()
 
     # disabled because of multiple warnings during building nvcc auto generated files
-    if(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_GCC_REGEX_VERSION VERSION_GREATER "4.6.0")
+    if(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "4.6.0")
       ocv_warnings_disable(CMAKE_CXX_FLAGS -Wunused-but-set-variable)
     endif()
 

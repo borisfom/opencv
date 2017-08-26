@@ -65,8 +65,6 @@
 #  else
 #   include <cuda_fp16.h>
 #  endif /* __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6) */
-
-
 #  include <npp.h>
 #  include "opencv2/core/cuda_stream_accessor.hpp"
 #  include "opencv2/core/cuda/common.hpp"
