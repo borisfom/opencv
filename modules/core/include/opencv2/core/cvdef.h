@@ -87,6 +87,7 @@ namespace cv { namespace debug_build_guard { } using namespace debug_build_guard
 #undef abs
 #undef Complex
 
+#include <new>
 #include <limits.h>
 #include "opencv2/core/hal/interface.h"
 
@@ -407,7 +408,7 @@ namespace cv {
     struct  CV_EXPORTS float16 {
         float16() {}
         explicit float16(float x);
- //       explicit float16(short s) { x=s; }
+        float16& operator = (float x) { new (this) float16(x); return *this; }
         operator float() const;
         union {
             short i;
@@ -417,7 +418,7 @@ namespace cv {
             operator __fp16() const { return h; }
 #endif
 
-#ifdef CUDA_VERSION
+#ifdef  __CUDA_FP16_H__
             half  hf;
             operator half() const { return hf; }
 #endif

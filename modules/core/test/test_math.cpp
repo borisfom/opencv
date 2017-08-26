@@ -336,7 +336,7 @@ void Core_PowTest::prepare_to_validation( int /*test_case_idx*/ )
                     {
                         double val = ((float16*)a_data)[j];
                         val = pow( fabs(val), power );
-                        ((float16*)b_data)[j] = (float16)val;
+                        ((float16*)b_data)[j] = (float)val;
                     }
                 else
                     for( j = 0; j < ncols; j++ )
