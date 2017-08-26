@@ -2326,7 +2326,12 @@ typedef Mat_<Vec2i> Mat2i;
 typedef Mat_<Vec3i> Mat3i;
 typedef Mat_<Vec4i> Mat4i;
 
-typedef Mat_<float> Mat1f;
+    typedef Mat_<float16> Mat1h;
+    typedef Mat_<Vec2h> Mat2h;
+    typedef Mat_<Vec3h> Mat3h;
+    typedef Mat_<Vec4h> Mat4h;
+
+    typedef Mat_<float> Mat1f;
 typedef Mat_<Vec2f> Mat2f;
 typedef Mat_<Vec3f> Mat3f;
 typedef Mat_<Vec4f> Mat4f;

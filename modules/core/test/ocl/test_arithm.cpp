@@ -1633,13 +1633,13 @@ PARAM_TEST_CASE(ConvertFp16, Channels, bool)
 
     void generateTestData()
     {
-        const int stype = CV_MAKE_TYPE(fromHalf ? CV_32F : CV_16S, cn);
-        const int dtype = CV_MAKE_TYPE(fromHalf ? CV_16S : CV_32F, cn);
+        const int stype = CV_MAKE_TYPE(fromHalf ? CV_32F : CV_16F, cn);
+        const int dtype = CV_MAKE_TYPE(fromHalf ? CV_16F : CV_32F, cn);
 
         Size roiSize = randomSize(1, MAX_VALUE);
         Border srcBorder = randomBorder(0, 0);
         randomSubMat(src, src_roi, roiSize, srcBorder, stype, -11, 11); // FIXIT: Test with minV, maxV
-        if (stype == CV_MAKE_TYPE(CV_16S, cn)) // eliminate NaN/Inf FP16 values
+        if (stype == CV_MAKE_TYPE(CV_16F, cn)) // eliminate NaN/Inf FP16 values
         {
             RNG dataRng(rng.next());
             Mat src_i32 = cvtest::randomMat(dataRng, roiSize, CV_MAKE_TYPE(CV_32S, cn), 0, 0x7c00, false);

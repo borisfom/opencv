@@ -156,109 +156,6 @@ namespace cv { namespace debug_build_guard { } using namespace debug_build_guard
 // when adding to this list remember to update the following enum
 #define CV_HARDWARE_MAX_FEATURE 255
 
-/** @brief Available CPU features.
-*/
-enum CpuFeatures {
-    CPU_MMX             = 1,
-    CPU_SSE             = 2,
-    CPU_SSE2            = 3,
-    CPU_SSE3            = 4,
-    CPU_SSSE3           = 5,
-    CPU_SSE4_1          = 6,
-    CPU_SSE4_2          = 7,
-    CPU_POPCNT          = 8,
-    CPU_FP16            = 9,
-    CPU_AVX             = 10,
-    CPU_AVX2            = 11,
-    CPU_FMA3            = 12,
-
-    CPU_AVX_512F        = 13,
-    CPU_AVX_512BW       = 14,
-    CPU_AVX_512CD       = 15,
-    CPU_AVX_512DQ       = 16,
-    CPU_AVX_512ER       = 17,
-    CPU_AVX_512IFMA512  = 18,
-    CPU_AVX_512PF       = 19,
-    CPU_AVX_512VBMI     = 20,
-    CPU_AVX_512VL       = 21,
-
-    CPU_NEON            = 100
-};
-
-
-#include "cv_cpu_dispatch.h"
-
-
-/* fundamental constants */
-#define CV_PI   3.1415926535897932384626433832795
-#define CV_2PI  6.283185307179586476925286766559
-#define CV_LOG2 0.69314718055994530941723212145818
-
-#if defined __ARM_FP16_FORMAT_IEEE \
-    && !defined __CUDACC__
-#  define CV_FP16_TYPE 1
-typedef __fp16 half;
-#else
-#  define CV_FP16_TYPE 0
-#endif
-
-typedef union Cv16suf
-{
-    short i;
-    unsigned short u;
-#if CV_FP16_TYPE
-    __fp16 h;
-#endif
-#if CUDA_VERSION
-    half  hf;
-#endif
-    struct _fp16Format
-    {
-        unsigned int significand : 10;
-        unsigned int exponent    : 5;
-        unsigned int sign        : 1;
-    } fmt;
-}
-Cv16suf;
-
-namespace cv {
-    struct /* CV_EXPORTS */ float16_t {
-        explicit float16_t(float x)
-        {
-
-        }
-
-        operator float() const
-        {
-
-        }
-
-        unsigned short x;
-    };
-}
-
-typedef union Cv32suf
-{
-    int i;
-    unsigned u;
-    float f;
-    struct _fp32Format
-    {
-        unsigned int significand : 23;
-        unsigned int exponent    : 8;
-        unsigned int sign        : 1;
-    } fmt;
-}
-Cv32suf;
-
-typedef union Cv64suf
-{
-    int64 i;
-    uint64 u;
-    double f;
-}
-Cv64suf;
-
 #define OPENCV_ABI_COMPATIBILITY 300
 
 #ifdef __OPENCV_BUILD
@@ -364,7 +261,7 @@ Cv64suf;
 \****************************************************************************************/
 
 #ifdef CV_XADD
-  // allow to use user-defined macro
+// allow to use user-defined macro
 #elif defined __GNUC__ || defined __clang__
 #  if defined __clang__ && __clang_major__ >= 3 && !defined __ANDROID__ && !defined __EMSCRIPTEN__ && !defined(__CUDACC__)
 #    ifdef __ATOMIC_ACQ_REL
@@ -374,7 +271,7 @@ Cv64suf;
 #    endif
 #  else
 #    if defined __ATOMIC_ACQ_REL && !defined __clang__
-       // version for gcc >= 4.7
+// version for gcc >= 4.7
 #      define CV_XADD(addr, delta) (int)__atomic_fetch_add((unsigned*)(addr), (unsigned)(delta), __ATOMIC_ACQ_REL)
 #    else
 #      define CV_XADD(addr, delta) (int)__sync_fetch_and_add((unsigned*)(addr), (unsigned)(delta))
@@ -449,6 +346,109 @@ Cv64suf;
 #    undef CV_CXX_STD_ARRAY
 #  endif
 #endif
+
+/** @brief Available CPU features.
+*/
+enum CpuFeatures {
+    CPU_MMX             = 1,
+    CPU_SSE             = 2,
+    CPU_SSE2            = 3,
+    CPU_SSE3            = 4,
+    CPU_SSSE3           = 5,
+    CPU_SSE4_1          = 6,
+    CPU_SSE4_2          = 7,
+    CPU_POPCNT          = 8,
+    CPU_FP16            = 9,
+    CPU_AVX             = 10,
+    CPU_AVX2            = 11,
+    CPU_FMA3            = 12,
+
+    CPU_AVX_512F        = 13,
+    CPU_AVX_512BW       = 14,
+    CPU_AVX_512CD       = 15,
+    CPU_AVX_512DQ       = 16,
+    CPU_AVX_512ER       = 17,
+    CPU_AVX_512IFMA512  = 18,
+    CPU_AVX_512PF       = 19,
+    CPU_AVX_512VBMI     = 20,
+    CPU_AVX_512VL       = 21,
+
+    CPU_NEON            = 100
+};
+
+
+#include "cv_cpu_dispatch.h"
+
+
+/* fundamental constants */
+#define CV_PI   3.1415926535897932384626433832795
+#define CV_2PI  6.283185307179586476925286766559
+#define CV_LOG2 0.69314718055994530941723212145818
+
+#if defined __ARM_FP16_FORMAT_IEEE \
+    && !defined __CUDACC__
+#  define CV_FP16_TYPE 1
+typedef __fp16 half;
+#else
+#  define CV_FP16_TYPE 0
+#endif
+
+namespace cv {
+
+    // ARM uses alternative FP16 format, this is IEEE 754 one:
+    struct FP16_IEEE_754
+    {
+        unsigned int significand : 10;
+        unsigned int exponent    : 5;
+        unsigned int sign        : 1;
+    };
+
+    // This is a placeholer for upcoming "short float"
+    struct  CV_EXPORTS float16 {
+        float16() {}
+        explicit float16(float x);
+ //       explicit float16(short s) { x=s; }
+        operator float() const;
+        union {
+            short i;
+            unsigned short u;
+#if CV_FP16_TYPE
+            __fp16 h;
+            operator __fp16() const { return h; }
+#endif
+
+#ifdef CUDA_VERSION
+            half  hf;
+            operator half() const { return hf; }
+#endif
+            FP16_IEEE_754 fmt;
+        };
+    };
+}
+
+typedef cv::float16 Cv16suf;
+
+typedef union Cv32suf
+{
+    int i;
+    unsigned u;
+    float f;
+    struct _fp32Format
+    {
+        unsigned int significand : 23;
+        unsigned int exponent    : 8;
+        unsigned int sign        : 1;
+    } fmt;
+}
+Cv32suf;
+
+typedef union Cv64suf
+{
+    int64 i;
+    uint64 u;
+    double f;
+}
+Cv64suf;
 
 //! @}
 

@@ -47,16 +47,6 @@
 #  error cuda_types.hpp header must be compiled as C++
 #endif
 
-#  include <cuda.h>
-#  include <cuda_runtime.h>
-#  if defined (__GNUC__)
-#   pragma GCC diagnostic push
-#   pragma GCC diagnostic ignored "-Wstrict-aliasing"
-#   include <cuda_fp16.h>
-#   pragma GCC diagnostic pop
-#  else
-#   include <cuda_fp16.h>
-#  endif /* __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6) */
 
 /** @file
  * @deprecated Use @ref cudev instead.

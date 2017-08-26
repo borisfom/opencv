@@ -224,17 +224,17 @@ public:
 };
 
 #if CV_FP16
-    template<> class DataType<half> {
+    template<> class DataType<float16> {
     public:
-        typedef half value_type;
+        typedef float16 value_type;
         typedef value_type work_type;
         typedef value_type channel_type;
         typedef value_type vec_type;
         enum {
             generic_type = 0,
-            depth = DataDepth<channel_type>::value,
+            depth = 2,
             channels = 1,
-            fmt = DataDepth<channel_type>::fmt,
+            fmt = (int)'g',
             type = CV_MAKETYPE(depth, channels)
         };
     };
@@ -317,13 +317,13 @@ template<> class TypeDepth<CV_16S>
     enum { depth = CV_16S };
     typedef short value_type;
 };
-#if CV_FP16
+
     template<> class TypeDepth<CV_16F>
     {
         enum { depth = CV_16F };
-        typedef half value_type;
+        typedef float16 value_type;
     };
-#endif
+
 template<> class TypeDepth<CV_32S>
 {
     enum { depth = CV_32S };

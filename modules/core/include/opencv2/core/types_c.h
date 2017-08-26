@@ -434,9 +434,7 @@ typedef struct CvMat
         uchar* ptr;
         short* s;
         int* i;
-#if CV_FP16
-        half* f;
-#endif
+        cv::float16* f;
         float* fl;
         double* db;
     } data;

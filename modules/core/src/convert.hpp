@@ -1,99 +1,28 @@
 
-namespace
-{
-float convertFp16SW(short fp16);
-short convertFp16SW(float fp32);
 
-#if !CV_FP16_TYPE
-// const numbers for floating points format
-const unsigned int kShiftSignificand    = 13;
-const unsigned int kMaskFp16Significand = 0x3ff;
-const unsigned int kBiasFp16Exponent    = 15;
-const unsigned int kBiasFp32Exponent    = 127;
-#endif
 
-#if CV_FP16_TYPE
-inline float convertFp16SW(short fp16)
-{
-    // Fp16 -> Fp32
-    Cv16suf a;
-    a.i = fp16;
-    return (float)a.h;
-}
-#else
-inline float convertFp16SW(short fp16)
-{
-    // Fp16 -> Fp32
-    Cv16suf b;
-    b.i = fp16;
-    int exponent    = b.fmt.exponent - kBiasFp16Exponent;
-    int significand = b.fmt.significand;
 
-    Cv32suf a;
-    a.i = 0;
-    a.fmt.sign = b.fmt.sign; // sign bit
-    if( exponent == 16 )
-    {
-        // Inf or NaN
-        a.i = a.i | 0x7F800000;
-        if( significand != 0 )
-        {
-            // NaN
-#if defined(__x86_64__) || defined(_M_X64)
-            // 64bit
-            a.i = a.i | 0x7FC00000;
-#endif
-            a.fmt.significand = a.fmt.significand | (significand << kShiftSignificand);
-        }
-        return a.f;
-    }
-    else if ( exponent == -(int)kBiasFp16Exponent )
-    {
-        // subnormal in Fp16
-        if( significand == 0 )
-        {
-            // zero
-            return a.f;
-        }
-        else
-        {
-            int shift = -1;
-            while( ( significand & 0x400 ) == 0 )
-            {
-                significand = significand << 1;
-                shift++;
-            }
-            significand = significand & kMaskFp16Significand;
-            exponent -= shift;
-        }
-    }
-
-    a.fmt.exponent = (exponent+kBiasFp32Exponent);
-    a.fmt.significand = significand << kShiftSignificand;
-    return a.f;
-}
-#endif
-
-#if CV_FP16_TYPE
-inline short convertFp16SW(float fp32)
-{
-    // Fp32 -> Fp16
-    Cv16suf a;
-    a.h = (__fp16)fp32;
-    return a.i;
-}
-#else
-
-#endif
-
-}
 
 namespace cv
 {
+#if CV_FP16_TYPE || __CUDA_ARCH__
+    inline float16 convertFp32toFp16SW(float a)
+{
+    return float16(a);
+}
+    inline float convertFp16toFp32SW(const float16& fp16);
+{
+    return float(fp16);
+}
+#else
+    float convertFp16toFp32SW(const float16& fp16);
+    float16 convertFp32toFp16SW(float fp32);
+#endif
+
 namespace opt_FP16
 {
-void cvtScaleHalf_SIMD32f16f( const float* src, size_t sstep, short* dst, size_t dstep, cv::Size size );
-void cvtScaleHalf_SIMD16f32f( const short* src, size_t sstep, float* dst, size_t dstep, cv::Size size );
+    void cvtScale_SIMD32f16f( const float* src, size_t sstep, float16* dst, size_t dstep, cv::Size size, float scale, float shift  );
+    void cvtScale_SIMD16f32f( const float16* src, size_t sstep, float* dst, size_t dstep, cv::Size size, float scale, float shift  );
 }
 namespace opt_AVX2
 {

@@ -330,6 +330,24 @@ void Core_PowTest::prepare_to_validation( int /*test_case_idx*/ )
                         ((float*)b_data)[j] = (float)val;
                     }
                 break;
+            case CV_16F:
+                if( power != ipower )
+                    for( j = 0; j < ncols; j++ )
+                    {
+                        double val = ((float16*)a_data)[j];
+                        val = pow( fabs(val), power );
+                        ((float16*)b_data)[j] = (float16)val;
+                    }
+                else
+                    for( j = 0; j < ncols; j++ )
+                    {
+                        double val = ((float16*)a_data)[j];
+                        if( ipower < 0 )
+                            val = 1./val;
+                        val = ipow( val, apower );
+                        ((float16*)b_data)[j] = (float16)val;
+                    }
+                break;
             case CV_64F:
                 if( power != ipower )
                     for( j = 0; j < ncols; j++ )

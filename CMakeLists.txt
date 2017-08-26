@@ -287,7 +287,7 @@ OCV_OPTION(INSTALL_C_EXAMPLES       "Install C examples"        OFF )
 OCV_OPTION(INSTALL_PYTHON_EXAMPLES  "Install Python examples"   OFF )
 OCV_OPTION(INSTALL_ANDROID_EXAMPLES "Install Android examples"  OFF IF ANDROID )
 OCV_OPTION(INSTALL_TO_MANGLED_PATHS "Enables mangled install paths, that help with side by side installs." OFF IF (UNIX AND NOT ANDROID AND NOT APPLE_FRAMEWORK AND BUILD_SHARED_LIBS) )
-OCV_OPTION(INSTALL_TESTS            "Install accuracy and performance test binaries and test data" OFF)
+OCV_OPTION(INSTALL_TESTS            "Install accuracy and performance test binaries and test data" ON)
 
 # OpenCV build options
 # ===================================================
