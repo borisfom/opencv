@@ -76,7 +76,8 @@ static std::string path(const std::string& file)
     return findDataFile("dnn/tensorflow/" + file, false);
 }
 
-static void runTensorFlowNet(const std::string& prefix)
+static void runTensorFlowNet(const std::string& prefix,
+                             double l1 = 1e-5, double lInf = 1e-4)
 {
     std::string netPath = path(prefix + "_net.pb");
     std::string inpPath = path(prefix + "_in.npy");
@@ -89,12 +90,14 @@ static void runTensorFlowNet(const std::string& prefix)
 
     net.setInput(input);
     cv::Mat output = net.forward();
-    normAssert(target, output);
+    normAssert(target, output, "", l1, lInf);
 }
 
 TEST(Test_TensorFlow, single_conv)
 {
     runTensorFlowNet("single_conv");
+    runTensorFlowNet("atrous_conv2d_valid");
+    runTensorFlowNet("atrous_conv2d_same");
 }
 
 TEST(Test_TensorFlow, padding)
@@ -128,6 +131,21 @@ TEST(Test_TensorFlow, pooling)
 TEST(Test_TensorFlow, deconvolution)
 {
     runTensorFlowNet("deconvolution");
+}
+
+TEST(Test_TensorFlow, fp16)
+{
+    const float l1 = 1e-3;
+    const float lInf = 1e-2;
+    runTensorFlowNet("fp16_single_conv", l1, lInf);
+    runTensorFlowNet("fp16_deconvolution", l1, lInf);
+    runTensorFlowNet("fp16_max_pool_odd_same", l1, lInf);
+    runTensorFlowNet("fp16_padding_valid", l1, lInf);
+    runTensorFlowNet("fp16_eltwise_add_mul", l1, lInf);
+    runTensorFlowNet("fp16_max_pool_odd_valid", l1, lInf);
+    runTensorFlowNet("fp16_pad_and_concat", l1, lInf);
+    runTensorFlowNet("fp16_max_pool_even", l1, lInf);
+    runTensorFlowNet("fp16_padding_same", l1, lInf);
 }
 
 }

@@ -146,6 +146,11 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
          */
         virtual void copyToHost() = 0;
 
+        /**
+         * @brief Indicate that an actual data is on CPU.
+         */
+        virtual void setHostDirty() = 0;
+
         int backendId;  //!< Backend identifier.
         int targetId;   //!< Target identifier.
     };
@@ -345,7 +350,7 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
         CV_WRAP Ptr<Layer> getLayer(LayerId layerId);
 
         /** @brief Returns pointers to input layers of specific layer. */
-        CV_WRAP std::vector<Ptr<Layer> > getLayerInputs(LayerId layerId);
+        std::vector<Ptr<Layer> > getLayerInputs(LayerId layerId); // FIXIT: CV_WRAP
 
         /** @brief Delete layer for the network (not implemented yet) */
         CV_WRAP void deleteLayer(LayerId layer);
@@ -428,21 +433,21 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
          * specific target. For layers that not represented in scheduling file
          * or if no manual scheduling used at all, automatic scheduling will be applied.
          */
-        void setHalideScheduler(const String& scheduler);
+        CV_WRAP void setHalideScheduler(const String& scheduler);
 
         /**
          * @brief Ask network to use specific computation backend where it supported.
          * @param[in] backendId backend identifier.
          * @see Backend
          */
-        void setPreferableBackend(int backendId);
+        CV_WRAP void setPreferableBackend(int backendId);
 
         /**
          * @brief Ask network to make computations on specific target device.
          * @param[in] targetId target identifier.
          * @see Target
          */
-        void setPreferableTarget(int targetId);
+        CV_WRAP void setPreferableTarget(int targetId);
 
         /** @brief Sets the new value for the layer output blob
          *  @param name descriptor of the updating layer output blob.
@@ -502,16 +507,16 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
          *  @param outLayerShapes output parameter for output layers shapes;
          * order is the same as in layersIds
          */
-        CV_WRAP void getLayerShapes(const MatShape& netInputShape,
+        void getLayerShapes(const MatShape& netInputShape,
                                     const int layerId,
                                     CV_OUT std::vector<MatShape>& inLayerShapes,
-                                    CV_OUT std::vector<MatShape>& outLayerShapes) const;
+                                    CV_OUT std::vector<MatShape>& outLayerShapes) const; // FIXIT: CV_WRAP
 
         /** @overload */
-        CV_WRAP void getLayerShapes(const std::vector<MatShape>& netInputShapes,
+        void getLayerShapes(const std::vector<MatShape>& netInputShapes,
                                     const int layerId,
                                     CV_OUT std::vector<MatShape>& inLayerShapes,
-                                    CV_OUT std::vector<MatShape>& outLayerShapes) const;
+                                    CV_OUT std::vector<MatShape>& outLayerShapes) const; // FIXIT: CV_WRAP
 
         /** @brief Computes FLOP for whole loaded model with specified input shapes.
          * @param netInputShapes vector of shapes for all net inputs.
@@ -544,8 +549,8 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
          * @param weights output parameter to store resulting bytes for weights.
          * @param blobs output parameter to store resulting bytes for intermediate blobs.
          */
-        CV_WRAP void getMemoryConsumption(const std::vector<MatShape>& netInputShapes,
-                                          CV_OUT size_t& weights, CV_OUT size_t& blobs) const;
+        void getMemoryConsumption(const std::vector<MatShape>& netInputShapes,
+                                          CV_OUT size_t& weights, CV_OUT size_t& blobs) const; // FIXIT: CV_WRAP
         /** @overload */
         CV_WRAP void getMemoryConsumption(const MatShape& netInputShape,
                                           CV_OUT size_t& weights, CV_OUT size_t& blobs) const;
@@ -565,15 +570,15 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
          * @param weights output parameter to store resulting bytes for weights.
          * @param blobs output parameter to store resulting bytes for intermediate blobs.
          */
-        CV_WRAP void getMemoryConsumption(const std::vector<MatShape>& netInputShapes,
+        void getMemoryConsumption(const std::vector<MatShape>& netInputShapes,
                                           CV_OUT std::vector<int>& layerIds,
                                           CV_OUT std::vector<size_t>& weights,
-                                          CV_OUT std::vector<size_t>& blobs) const;
+                                          CV_OUT std::vector<size_t>& blobs) const; // FIXIT: CV_WRAP
         /** @overload */
-        CV_WRAP void getMemoryConsumption(const MatShape& netInputShape,
+        void getMemoryConsumption(const MatShape& netInputShape,
                                           CV_OUT std::vector<int>& layerIds,
                                           CV_OUT std::vector<size_t>& weights,
-                                          CV_OUT std::vector<size_t>& blobs) const;
+                                          CV_OUT std::vector<size_t>& blobs) const; // FIXIT: CV_WRAP
 
         /** @brief Enables or disables layer fusion in the network.
          * @param fusion true to enable the fusion, false to disable. The fusion is enabled by default.
