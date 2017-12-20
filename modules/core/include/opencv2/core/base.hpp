@@ -342,7 +342,23 @@ enum BorderTypes {
 #define CV_SUPPRESS_DEPRECATED_START
 #define CV_SUPPRESS_DEPRECATED_END
 #endif
+
 #define CV_UNUSED(name) (void)name
+
+#if defined __GNUC__ && !defined __EXCEPTIONS
+#define CV_TRY
+#define CV_CATCH(A, B) for (A B; false; )
+#define CV_CATCH_ALL if (false)
+#define CV_THROW(A) abort()
+#define CV_RETHROW() abort()
+#else
+#define CV_TRY try
+#define CV_CATCH(A, B) catch(const A & B)
+#define CV_CATCH_ALL catch(...)
+#define CV_THROW(A) throw A
+#define CV_RETHROW() throw
+#endif
+
 //! @endcond
 
 /*! @brief Signals an error and raises the exception.
@@ -740,5 +756,6 @@ CV_EXPORTS_W void setUseIPP_NE(bool flag);
 } // cv
 
 #include "opencv2/core/neon_utils.hpp"
+#include "opencv2/core/vsx_utils.hpp"
 
 #endif //OPENCV_CORE_BASE_HPP

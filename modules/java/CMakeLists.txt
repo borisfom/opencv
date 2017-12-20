@@ -413,11 +413,16 @@ endif(ANDROID)
 
 # workarounding lack of `__attribute__ ((visibility("default")))` in jni_md.h/JNIEXPORT
 string(REPLACE "-fvisibility=hidden" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-ocv_warnings_disable(CMAKE_CXX_FLAGS -Wunused-const-variable -Wundef)
+if(MSVC)
+  ocv_warnings_disable(CMAKE_CXX_FLAGS /wd4996)
+else()
+  ocv_warnings_disable(CMAKE_CXX_FLAGS -Wunused-const-variable -Wundef -Wdeprecated-declarations)
+endif()
+
 
 ocv_add_library(${the_module} SHARED ${handwritten_h_sources} ${handwritten_cpp_sources} ${generated_cpp_sources}
-                                 ${copied_files}
-                                "${JAR_FILE}" "${JAR_FILE}.dephelper")
+                                ${copied_files}
+                               "${JAR_FILE}" "${JAR_FILE}.dephelper")
 
 if(BUILD_FAT_JAVA_LIB)
   set(__deps ${OPENCV_MODULE_${the_module}_DEPS} ${OPENCV_MODULES_BUILD})
@@ -451,6 +456,7 @@ set_target_properties(${the_module} PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_PATH}
     LIBRARY_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_PATH}
     RUNTIME_OUTPUT_DIRECTORY ${EXECUTABLE_OUTPUT_PATH}
+    DEFINE_SYMBOL CVAPI_EXPORTS
     )
 
 if(ANDROID)
@@ -480,11 +486,11 @@ if(ANDROID)
           ARCHIVE DESTINATION ${OPENCV_LIB_INSTALL_PATH} COMPONENT java)
 else()
   if(NOT INSTALL_CREATE_DISTRIB)
-    ocv_install_target(${the_module} OPTIONAL EXPORT OpenCVModules
+    ocv_install_target(${the_module} OPTIONAL
             RUNTIME DESTINATION ${OPENCV_JAR_INSTALL_PATH} COMPONENT java
             LIBRARY DESTINATION ${OPENCV_JAR_INSTALL_PATH} COMPONENT java)
   else()
-    ocv_install_target(${the_module} OPTIONAL EXPORT OpenCVModules
+    ocv_install_target(${the_module} OPTIONAL
             RUNTIME DESTINATION ${OPENCV_JAR_INSTALL_PATH}/${OpenCV_ARCH} COMPONENT java
             LIBRARY DESTINATION ${OPENCV_JAR_INSTALL_PATH}/${OpenCV_ARCH} COMPONENT java)
   endif()

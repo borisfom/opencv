@@ -43,6 +43,7 @@
 #include "../precomp.hpp"
 #include "layers_common.hpp"
 #include "op_halide.hpp"
+#include "opencl_kernels_dnn.hpp"
 
 namespace cv
 {
@@ -173,6 +174,68 @@ public:
             }
         }
     };
+
+#ifdef HAVE_OPENCL
+    bool forward_ocl(InputArrayOfArrays inps, OutputArrayOfArrays outs, OutputArrayOfArrays internals)
+    {
+        std::vector<UMat> inputs;
+        std::vector<UMat> outputs;
+
+        inps.getUMatVector(inputs);
+        outs.getUMatVector(outputs);
+
+        int cAxis = clamp(axis, inputs[0].dims);
+        if (padding)
+            return false;
+
+        int bottom_concat_axis;
+        int concat_size = total(shape(inputs[0]), cAxis + 1);
+        int top_concat_axis = outputs[0].size[cAxis];
+        int num_concats = total(shape(inputs[0]), 0, cAxis);
+        int offset_concat_axis = 0;
+        UMat& outMat = outputs[0];
+        String buildopt = String("-DDtype=") + ocl::typeToStr(inputs[0].type()) + String(" ");
+
+        for (size_t i = 0; i < inputs.size(); i++)
+        {
+            ocl::Kernel kernel("concat", ocl::dnn::concat_oclsrc, buildopt);
+            if (kernel.empty())
+                return false;
+
+            UMat& inpMat = inputs[i];
+            bottom_concat_axis = inputs[i].size[cAxis];
+            size_t nthreads = inputs[i].total();
+
+            kernel.set(0, (int)nthreads);
+            kernel.set(1, ocl::KernelArg::PtrReadOnly(inpMat));
+            kernel.set(2, (int)num_concats);
+            kernel.set(3, (int)concat_size);
+            kernel.set(4, (int)top_concat_axis);
+            kernel.set(5, (int)bottom_concat_axis);
+            kernel.set(6, (int)offset_concat_axis);
+            kernel.set(7, ocl::KernelArg::PtrWriteOnly(outMat));
+
+            if (!kernel.run(1, &nthreads, NULL, false))
+                return false;
+
+            offset_concat_axis += bottom_concat_axis;
+        }
+
+        return true;
+    }
+#endif
+
+    void forward(InputArrayOfArrays inputs_arr, OutputArrayOfArrays outputs_arr, OutputArrayOfArrays internals_arr)
+    {
+        CV_TRACE_FUNCTION();
+        CV_TRACE_ARG_VALUE(name, "name", name.c_str());
+
+        CV_OCL_RUN((preferableTarget == DNN_TARGET_OPENCL) &&
+                   OCL_PERFORMANCE_CHECK(ocl::Device::getDefault().isIntel()),
+                   forward_ocl(inputs_arr, outputs_arr, internals_arr))
+
+        Layer::forward_fallback(inputs_arr, outputs_arr, internals_arr);
+    }
 
     void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals)
     {

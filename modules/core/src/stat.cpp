@@ -3359,6 +3359,11 @@ static bool ocl_norm( InputArray _src1, InputArray _src2, int normType, InputArr
     normType &= ~NORM_RELATIVE;
     bool normsum = normType == NORM_L1 || normType == NORM_L2 || normType == NORM_L2SQR;
 
+#ifdef __APPLE__
+    if(normType == NORM_L1 && type == CV_16UC3 && !_mask.empty())
+        return false;
+#endif
+
     if (normsum)
     {
         if (!ocl_sum(_src1, sc1, normType == NORM_L2 || normType == NORM_L2SQR ?
@@ -4150,7 +4155,9 @@ double cv::PSNR(InputArray _src1, InputArray _src2)
 {
     CV_INSTRUMENT_REGION()
 
-    CV_Assert( _src1.depth() == CV_8U );
+    //Input arrays must have depth CV_8U
+    CV_Assert( _src1.depth() == CV_8U && _src2.depth() == CV_8U );
+
     double diff = std::sqrt(norm(_src1, _src2, NORM_L2SQR)/(_src1.total()*_src1.channels()));
     return 20*log10(255./(diff+DBL_EPSILON));
 }
@@ -4363,7 +4370,7 @@ float normL2Sqr_(const float* a, const float* b, int n)
     for( ; j <= n - 8; j += 8 )
     {
         __m256 t0 = _mm256_sub_ps(_mm256_loadu_ps(a + j), _mm256_loadu_ps(b + j));
-#ifdef CV_FMA3
+#if CV_FMA3
         d0 = _mm256_fmadd_ps(t0, t0, d0);
 #else
         d0 = _mm256_add_ps(d0, _mm256_mul_ps(t0, t0));
