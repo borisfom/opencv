@@ -207,7 +207,7 @@ typedef __fp16 half;
 #  define CV_FP16_TYPE 0
 #endif
 
-typedef union Cv16suf
+union Cv16suf
 {
     short i;
     unsigned short u;
@@ -215,7 +215,7 @@ typedef union Cv16suf
     __fp16 h;
 #endif
 #ifdef  __CUDA_FP16_H__
-    half  hf;
+    __half  hf;
 #endif  
     struct _fp16Format
     {
@@ -223,8 +223,7 @@ typedef union Cv16suf
         unsigned int exponent    : 5;
         unsigned int sign        : 1;
     } fmt;
-}
-Cv16suf;
+};
 
 typedef union Cv32suf
 {
@@ -448,9 +447,13 @@ Cv64suf;
 #    undef CV_CXX_STD_ARRAY
 #  endif
 #endif
+
 namespace cv {
 // This is a placeholer for upcoming "short float"
-    struct CV_EXPORTS float16 {
+#if CV_FP16_TYPE
+   typedef __fp16 float16;
+#else
+struct CV_EXPORTS float16 {
         float16() {}
 
         explicit float16(float x);
@@ -462,8 +465,9 @@ namespace cv {
 
         operator float() const;
 
-        Cv16suf u;
+        unsigned short u;
     };
+#endif
 }
 //! @}
 

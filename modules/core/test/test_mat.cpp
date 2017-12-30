@@ -185,6 +185,8 @@ int Core_ReduceTest::checkCase( int srcType, int dstType, int dim, Size sz )
         testReduce<float>( src, sum, avg, max, min, dim );
     else if( srcType == CV_64FC1 )
         testReduce<double>( src, sum, avg, max, min, dim );
+    else if( srcType == CV_16FC1 )
+        testReduce<float16>( src, sum, avg, max, min, dim );
     else
         assert( 0 );
 

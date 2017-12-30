@@ -54,6 +54,16 @@
 #define CV_NEON 0
 #endif
 
+namespace cv {
+    float16::operator float() const {
+        return cv::convertFp16toFp32SW(*this);
+    }
+
+    float16::float16(float f) {
+        this->u = cv::convertFp32toFp16SW(f);
+    }
+}
+
 #define CV_SPLIT_MERGE_MAX_BLOCK_SIZE(cn) ((INT_MAX/4)/cn) // HAL implementation accepts 'int' len, so INT_MAX doesn't work here
 
 /****************************************************************************************\
@@ -557,7 +567,7 @@ static MixChannelsFunc getMixchFunc(int depth)
     {
         (MixChannelsFunc)mixChannels8u, (MixChannelsFunc)mixChannels8u, (MixChannelsFunc)mixChannels16u,
         (MixChannelsFunc)mixChannels16u, (MixChannelsFunc)mixChannels32s, (MixChannelsFunc)mixChannels32s,
-        (MixChannelsFunc)mixChannels64s, 0
+        (MixChannelsFunc)mixChannels64s, (MixChannelsFunc)mixChannels16u
     };
 
     return mixchTab[depth];
@@ -2486,15 +2496,6 @@ cvtScale_<short, int, float>( const short* src, size_t sstep,
     }
 }
 
-template <typename T, typename DT>
-struct Cvt_SIMD
-{
-    int operator() (const T *, DT *, int) const
-    {
-        return 0;
-    }
-};
-
 #if CV_SIMD128
 // from uchar
 
@@ -3413,45 +3414,6 @@ struct Cvt_SIMD<float, double>
 #endif // CV_SIMD128_64F
 #endif // CV_SIMD128
 
-// template for FP16 HW conversion function
-template<> void
-cvtScale_<float, float16, float>( const float* src, size_t sstep, float16* dst, size_t dstep, Size size, float scale, float shift)
-{
-    CV_CPU_CALL_FP16(cvtScale_SIMD32f16f, (src, sstep, dst, dstep, size, scale, shift));
-
-#if !defined(CV_CPU_COMPILE_FP16)
-    sstep /= sizeof(src[0]);
-    dstep /= sizeof(dst[0]);
-
-    for( ; size.height--; src += sstep, dst += dstep )
-    {
-        for ( int x = 0; x < size.width; x++ )
-        {
-            dst[x] = convertFp32toFp16SW(src[x]);
-        }
-    }
-#endif
-}
-
-template<> void
-cvtScale_<float16, float, float>( const float16* src, size_t sstep, float* dst, size_t dstep, Size size, float scale, float shift)
-{
-    CV_CPU_CALL_FP16(cvtScale_SIMD16f32f, (src, sstep, dst, dstep, size, scale, shift));
-
-#if !defined(CV_CPU_COMPILE_FP16)
-    sstep /= sizeof(src[0]);
-    dstep /= sizeof(dst[0]);
-
-    for( ; size.height--; src += sstep, dst += dstep )
-    {
-        for ( int x = 0; x < size.width; x++ )
-        {
-            dst[x] = convertFp16toFp32SW(src[x]);
-        }
-    }
-#endif
-}
-
 #ifdef HAVE_OPENVX
 
 template<typename T, typename DT>
@@ -3609,14 +3571,6 @@ static void cvtScaleAbs##suffix( const stype* src, size_t sstep, const uchar*, s
     tfunc(src, sstep, dst, dstep, size, (wtype)scale[0], (wtype)scale[1]); \
 }
 
-#define DEF_CVT_SCALE_FP16_FUNC(suffix, stype, dtype) \
-static void cvtScale##suffix( const stype* src, size_t sstep, \
-dtype* dst, size_t dstep, Size size, float* scale) \
-{ \
-    cvtScale_<stype,dtype, float>(src, sstep, dst, dstep, size, scale[0], scale[1]);  \
-}
-
-
 #define DEF_CVT_SCALE_FUNC(suffix, stype, dtype, wtype) \
 static void cvtScale##suffix( const stype* src, size_t sstep, const uchar*, size_t, \
 dtype* dst, size_t dstep, Size size, double* scale) \
@@ -3673,8 +3627,9 @@ DEF_CVT_SCALE_ABS_FUNC(32s8u, cvtScaleAbs_, int, uchar, float)
 DEF_CVT_SCALE_ABS_FUNC(32f8u, cvtScaleAbs_, float, uchar, float)
 DEF_CVT_SCALE_ABS_FUNC(64f8u, cvtScaleAbs_, double, uchar, float)
 
-DEF_CVT_SCALE_FP16_FUNC(32f16f, float, float16)
-DEF_CVT_SCALE_FP16_FUNC(16f32f, float16, float)
+DEF_CVT_SCALE_FUNC(32f16f, float, float16, float)
+DEF_CVT_SCALE_FUNC(16f32f, float16, float, float)
+DEF_CVT_SCALE_FUNC(16f, float16, float16, float)
 
 DEF_CVT_SCALE_FUNC(8u,     uchar, uchar, float)
 DEF_CVT_SCALE_FUNC(8s8u,   schar, uchar, float)
@@ -3776,6 +3731,7 @@ DEF_CVT_FUNC_F(16u32f, ushort, float, 16u32f_C1R)
 DEF_CVT_FUNC_F(16s32f, short, float, 16s32f_C1R)
 DEF_CVT_FUNC_F(32s32f, int, float, 32s32f_C1R)
 DEF_CVT_FUNC(64f32f, double, float)
+DEF_CVT_FUNC(16f32f, float16, float)
 
 DEF_CVT_FUNC(8u64f,  uchar, double)
 DEF_CVT_FUNC(8s64f,  schar, double)
@@ -3784,6 +3740,9 @@ DEF_CVT_FUNC(16s64f, short, double)
 DEF_CVT_FUNC(32s64f, int, double)
 DEF_CVT_FUNC(32f64f, float, double)
 DEF_CPY_FUNC(64s,    int64)
+
+DEF_CVT_FUNC(32f16f, float, float16)
+DEF_CPY_FUNC(16f, float16)
 
 static BinaryFunc getCvtScaleAbsFunc(int depth)
 {
@@ -3795,21 +3754,6 @@ static BinaryFunc getCvtScaleAbsFunc(int depth)
     };
 
     return cvtScaleAbsTab[depth];
-}
-
-typedef void (*UnaryFunc)(const uchar* src1, size_t step1,
-                       uchar* dst, size_t step, Size sz,
-                       void*);
-
-static UnaryFunc getConvertFuncFp16(int ddepth)
-{
-    static UnaryFunc cvtTab[] =
-    {
-        0, 0, 0,
-        (UnaryFunc)(cvtScale32f16f), 0, (UnaryFunc)(cvtScale16f32f),
-        0, 0,
-    };
-    return cvtTab[CV_MAT_DEPTH(ddepth)];
 }
 
 BinaryFunc getConvertFunc(int sdepth, int ddepth)
@@ -3844,7 +3788,7 @@ BinaryFunc getConvertFunc(int sdepth, int ddepth)
         {
             (BinaryFunc)GET_OPTIMIZED(cvt8u32f), (BinaryFunc)GET_OPTIMIZED(cvt8s32f), (BinaryFunc)GET_OPTIMIZED(cvt16u32f),
             (BinaryFunc)GET_OPTIMIZED(cvt16s32f), (BinaryFunc)GET_OPTIMIZED(cvt32s32f), (BinaryFunc)cvt32s,
-            (BinaryFunc)GET_OPTIMIZED(cvt64f32f), 0
+            (BinaryFunc)GET_OPTIMIZED(cvt64f32f), (BinaryFunc)GET_OPTIMIZED(cvt16f32f)
         },
         {
             (BinaryFunc)GET_OPTIMIZED(cvt8u64f), (BinaryFunc)GET_OPTIMIZED(cvt8s64f), (BinaryFunc)GET_OPTIMIZED(cvt16u64f),
@@ -3852,7 +3796,7 @@ BinaryFunc getConvertFunc(int sdepth, int ddepth)
             (BinaryFunc)(cvt64s), 0
         },
         {
-            0, 0, 0, 0, 0, 0, 0, 0
+            0, 0, 0, 0, 0, (BinaryFunc)GET_OPTIMIZED(cvt32f16f), 0, (BinaryFunc)cvt16f
         }
     };
 
@@ -3891,7 +3835,7 @@ static BinaryFunc getConvertScaleFunc(int sdepth, int ddepth)
         {
             (BinaryFunc)GET_OPTIMIZED(cvtScale8u32f), (BinaryFunc)GET_OPTIMIZED(cvtScale8s32f), (BinaryFunc)GET_OPTIMIZED(cvtScale16u32f),
             (BinaryFunc)GET_OPTIMIZED(cvtScale16s32f), (BinaryFunc)GET_OPTIMIZED(cvtScale32s32f), (BinaryFunc)GET_OPTIMIZED(cvtScale32f),
-            (BinaryFunc)cvtScale64f32f, 0
+            (BinaryFunc)cvtScale64f32f, (BinaryFunc)cvtScale16f32f
         },
         {
             (BinaryFunc)cvtScale8u64f, (BinaryFunc)cvtScale8s64f, (BinaryFunc)cvtScale16u64f,
@@ -3899,7 +3843,7 @@ static BinaryFunc getConvertScaleFunc(int sdepth, int ddepth)
             (BinaryFunc)cvtScale64f, 0
         },
         {
-            0, 0, 0, 0, 0, 0, 0, 0
+            0, 0, 0, 0, 0, (BinaryFunc)cvtScale32f16f, 0, (BinaryFunc)cvtScale16f
         }
     };
 
@@ -3970,8 +3914,8 @@ static bool ocl_convertFp16( InputArray _src, OutputArray _dst, int ddepth )
     int kercn = 1;
     int rowsPerWI = 1;
     String build_opt = format("-D HALF_SUPPORT -D dstT=%s -D srcT=%s -D rowsPerWI=%d%s",
-                           ddepth == CV_16S ? "half" : "float",
-                           ddepth == CV_16S ? "float" : "half",
+                           ddepth == CV_16S || ddepth == CV_16F ? "half" : "float",
+                           ddepth == CV_16S || ddepth == CV_16F ? "float" : "half",
                            rowsPerWI,
                            ddepth == CV_16S ? " -D FLOAT_TO_HALF " : "");
     ocl::Kernel k("convertFp16", ocl::core::halfconvert_oclsrc, build_opt);
@@ -4031,12 +3975,14 @@ void cv::convertFp16( InputArray _src, OutputArray _dst)
     CV_INSTRUMENT_REGION()
 
     int ddepth = 0;
+    int sdepth = _src.depth();
     switch( _src.depth() )
     {
     case CV_32F:
-        ddepth = CV_16S;
+        ddepth = CV_16F;
         break;
     case CV_16S:
+        sdepth = CV_16F;
     case CV_16F:
         ddepth = CV_32F;
         break;
@@ -4053,14 +3999,14 @@ void cv::convertFp16( InputArray _src, OutputArray _dst)
     int type = CV_MAKETYPE(ddepth, src.channels());
     _dst.create( src.dims, src.size, type );
     Mat dst = _dst.getMat();
-    UnaryFunc func = getConvertFuncFp16(ddepth);
+    BinaryFunc func = getConvertFunc(sdepth, ddepth);
     int cn = src.channels();
     CV_Assert( func != 0 );
-
+ //   float scale[2] = {alpha, beta};
     if( src.dims <= 2 )
     {
         Size sz = getContinuousSize(src, dst, cn);
-        func( src.data, src.step, dst.data, dst.step, sz, 0);
+        func(src.data, (size_t)src.step, NULL, 0, dst.data, (size_t)dst.step, sz, NULL);
     }
     else
     {
@@ -4070,7 +4016,7 @@ void cv::convertFp16( InputArray _src, OutputArray _dst)
         Size sz((int)(it.size*cn), 1);
 
         for( size_t i = 0; i < it.nplanes; i++, ++it )
-            func(ptrs[0], 1, ptrs[1], 1, sz, 0);
+            func(ptrs[0], 1, NULL, 0, ptrs[1], 1, sz, NULL);
     }
 }
 
@@ -4862,15 +4808,17 @@ namespace cv {
     const unsigned int kBiasFp16Exponent = 15;
     const unsigned int kBiasFp32Exponent = 127;
 
-    float convertFp16toFp32SW(const float16 &b) {
+    float convertFp16toFp32SW(const float16& src) {
         // Fp16 -> Fp32
-
-        int exponent = b.u.fmt.exponent - kBiasFp16Exponent;
-        int significand = b.u.fmt.significand;
-
         Cv32suf a;
+        Cv16suf b;
+        b.u = src.u;
         a.i = 0;
-        a.fmt.sign = b.u.fmt.sign; // sign bit
+        a.fmt.sign = b.fmt.sign; // sign bit
+
+        int exponent = b.fmt.exponent - kBiasFp16Exponent;
+        int significand = b.fmt.significand;
+
         if (exponent == 16) {
             // Inf or NaN
             a.i = a.i | 0x7F800000;
@@ -4911,19 +4859,19 @@ namespace cv {
         int exponent = a.fmt.exponent - kBiasFp32Exponent;
         int significand = a.fmt.significand;
 
-        float16 result;
-        result.u.i = 0;
+        Cv16suf result;
+        result.i = 0;
         unsigned int absolute = a.i & 0x7fffffff;
         if (0x477ff000 <= absolute) {
             // Inf in Fp16
-            result.u.i = result.u.i | 0x7C00;
+            result.i = result.i | 0x7C00;
             if (exponent == 128 && significand != 0) {
                 // NaN
-                result.u.i = (short) (result.u.i | 0x200 | (significand >> kShiftSignificand));
+                result.i = (short) (result.i | 0x200 | (significand >> kShiftSignificand));
             }
         } else if (absolute < 0x33000001) {
             // too small for fp16
-            result.u.i = 0;
+            result.i = 0;
         } else if (absolute < 0x387fe000) {
             // subnormal in Fp16
             int fp16Significand = significand | 0x800000;
@@ -4935,44 +4883,40 @@ namespace cv {
             int threshold = ((0x400000 >> bitShift) |
                              (((significand & (0x800000 >> bitShift)) >> (126 - a.fmt.exponent)) ^ 1));
             if (absolute == 0x33c00000) {
-                result.u.i = 2;
+                result.i = 2;
             } else {
                 if (threshold <= (significand & (0xffffff >> (exponent + 25)))) {
                     fp16Significand++;
                 }
-                result.u.i = (short) fp16Significand;
+                result.i = (short) fp16Significand;
             }
         } else {
             // usual situation
             // exponent
-            result.u.fmt.exponent = (exponent + kBiasFp16Exponent);
+            result.fmt.exponent = (exponent + kBiasFp16Exponent);
 
             // significand;
             short fp16Significand = (short) (significand >> kShiftSignificand);
-            result.u.fmt.significand = fp16Significand;
+            result.fmt.significand = fp16Significand;
 
             // special cases to round up
             short lsb10bitsFp32 = (significand & 0x1fff);
             short threshold = 0x1000 + ((fp16Significand & 0x1) ? 0 : 1);
             if (threshold <= lsb10bitsFp32) {
-                result.u.i++;
+                result.i++;
             } else if (fp16Significand == kMaskFp16Significand && exponent == -15) {
-                result.u.i++;
+                result.i++;
             }
         }
 
         // sign bit
-        result.u.fmt.sign = a.fmt.sign;
-        return result;
+        result.fmt.sign = a.fmt.sign;
+        float16 ret;
+        ret.u = result.u;
+        return ret;
     }
 
-    float16::operator float() const {
-        return convertFp16toFp32SW(*this);
-    }
-
-    float16::float16(float f) {
-        this->u.i = convertFp32toFp16SW(f).u.i;
-    }
 }
+
 
 /* End of file. */
