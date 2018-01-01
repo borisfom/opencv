@@ -60,7 +60,7 @@ namespace cv {
     }
 
     float16::float16(float f) {
-        this->u = cv::convertFp32toFp16SW(f);
+        *this = cv::convertFp32toFp16SW(f);
     }
 }
 
