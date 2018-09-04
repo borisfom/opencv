@@ -513,9 +513,11 @@ static void v4l2_scan_controls(CvCaptureCAM_V4L* capture)
 
     for (ctrl_id = V4L2_CID_PRIVATE_BASE;;ctrl_id++)
     {
+        errno = 0;
+
         v4l2_control_range(capture, ctrl_id);
 
-        if (errno == EINVAL)
+        if (errno)
             break;
     }
 
@@ -859,45 +861,39 @@ static int read_frame_v4l2(CvCaptureCAM_V4L* capture) {
 }
 
 static int mainloop_v4l2(CvCaptureCAM_V4L* capture) {
-    unsigned int count;
+    for (;;) {
+        fd_set fds;
+        struct timeval tv;
+        int r;
 
-    count = 1;
+        FD_ZERO (&fds);
+        FD_SET (capture->deviceHandle, &fds);
 
-    while (count-- > 0) {
-        for (;;) {
-            fd_set fds;
-            struct timeval tv;
-            int r;
+        /* Timeout. */
+        tv.tv_sec = 10;
+        tv.tv_usec = 0;
 
-            FD_ZERO (&fds);
-            FD_SET (capture->deviceHandle, &fds);
+        r = select (capture->deviceHandle+1, &fds, NULL, NULL, &tv);
 
-            /* Timeout. */
-            tv.tv_sec = 10;
-            tv.tv_usec = 0;
+        if (-1 == r) {
+            if (EINTR == errno)
+                continue;
 
-            r = select (capture->deviceHandle+1, &fds, NULL, NULL, &tv);
-
-            if (-1 == r) {
-                if (EINTR == errno)
-                    continue;
-
-                perror ("select");
-            }
-
-            if (0 == r) {
-                fprintf (stderr, "select timeout\n");
-
-                /* end the infinite loop */
-                break;
-            }
-
-            int returnCode = read_frame_v4l2 (capture);
-            if(returnCode == -1)
-                return -1;
-            if(returnCode == 1)
-                return 1;
+            perror ("select");
         }
+
+        if (0 == r) {
+            fprintf (stderr, "select timeout\n");
+
+            /* end the infinite loop */
+            break;
+        }
+
+        int returnCode = read_frame_v4l2 (capture);
+        if(returnCode == -1)
+            return -1;
+        if(returnCode == 1)
+            return 1;
     }
     return 0;
 }

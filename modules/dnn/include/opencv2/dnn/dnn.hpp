@@ -45,20 +45,13 @@
 #include <vector>
 #include <opencv2/core.hpp>
 
-#if !defined CV_DOXYGEN && !defined CV_DNN_DONT_ADD_EXPERIMENTAL_NS
-#define CV__DNN_EXPERIMENTAL_NS_BEGIN namespace experimental_dnn_v6 {
-#define CV__DNN_EXPERIMENTAL_NS_END }
-namespace cv { namespace dnn { namespace experimental_dnn_v6 { } using namespace experimental_dnn_v6; }}
-#else
-#define CV__DNN_EXPERIMENTAL_NS_BEGIN
-#define CV__DNN_EXPERIMENTAL_NS_END
-#endif
+#include "../dnn/version.hpp"
 
 #include <opencv2/dnn/dict.hpp>
 
 namespace cv {
 namespace dnn {
-CV__DNN_EXPERIMENTAL_NS_BEGIN
+CV__DNN_INLINE_NS_BEGIN
 //! @addtogroup dnn
 //! @{
 
@@ -885,6 +878,14 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
     CV_EXPORTS_W void shrinkCaffeModel(const String& src, const String& dst,
                                        const std::vector<String>& layersTypes = std::vector<String>());
 
+    /** @brief Create a text representation for a binary network stored in protocol buffer format.
+     *  @param[in] model  A path to binary network.
+     *  @param[in] output A path to output text file to be created.
+     *
+     *  @note To reduce output file size, trained weights are not included.
+     */
+    CV_EXPORTS_W void writeTextGraph(const String& model, const String& output);
+
     /** @brief Performs non maximum suppression given boxes and corresponding scores.
 
      * @param bboxes a set of bounding boxes to apply NMS.
@@ -900,13 +901,13 @@ CV__DNN_EXPERIMENTAL_NS_BEGIN
                                CV_OUT std::vector<int>& indices,
                                const float eta = 1.f, const int top_k = 0);
 
-    CV_EXPORTS void NMSBoxes(const std::vector<RotatedRect>& bboxes, const std::vector<float>& scores,
+    CV_EXPORTS_AS(NMSBoxesRotated) void NMSBoxes(const std::vector<RotatedRect>& bboxes, const std::vector<float>& scores,
                              const float score_threshold, const float nms_threshold,
                              CV_OUT std::vector<int>& indices,
                              const float eta = 1.f, const int top_k = 0);
 
 //! @}
-CV__DNN_EXPERIMENTAL_NS_END
+CV__DNN_INLINE_NS_END
 }
 }
 

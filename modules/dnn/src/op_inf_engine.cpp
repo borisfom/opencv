@@ -161,6 +161,7 @@ InfEngineBackendNet::InfEngineBackendNet(InferenceEngine::CNNNetwork& net)
     inputs = net.getInputsInfo();
     outputs = net.getOutputsInfo();
     layers.resize(net.layerCount());  // A hack to execute InfEngineBackendNet::layerCount correctly.
+    netOwner = net;
 }
 
 void InfEngineBackendNet::Release() noexcept
@@ -524,8 +525,7 @@ Mat infEngineBlobToMat(const InferenceEngine::Blob::Ptr& blob)
 {
     // NOTE: Inference Engine sizes are reversed.
     std::vector<size_t> dims = blob->dims();
-    std::vector<int> size(dims.begin(), dims.end());
-    std::reverse(size.begin(), size.end());
+    std::vector<int> size(dims.rbegin(), dims.rend());
     return Mat(size, CV_32F, (void*)blob->buffer());
 }
 
@@ -540,8 +540,7 @@ bool InfEngineBackendLayer::getMemoryShapes(const std::vector<MatShape> &inputs,
                                             std::vector<MatShape> &internals) const
 {
     std::vector<size_t> dims = output->dims;
-    std::vector<int> shape(dims.begin(), dims.end());
-    std::reverse(shape.begin(), shape.end());
+    std::vector<int> shape(dims.rbegin(), dims.rend());
     outputs.assign(1, shape);
     return false;
 }
