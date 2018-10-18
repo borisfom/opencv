@@ -1480,7 +1480,7 @@ namespace cv
 static bool ipp_boxfilter(Mat &src, Mat &dst, Size ksize, Point anchor, bool normalize, int borderType)
 {
 #ifdef HAVE_IPP_IW
-    CV_INSTRUMENT_REGION_IPP()
+    CV_INSTRUMENT_REGION_IPP();
 
 #if IPP_VERSION_X100 < 201801
     // Problem with SSE42 optimization for 16s and some 8u modes
@@ -1529,7 +1529,7 @@ void cv::boxFilter( InputArray _src, OutputArray _dst, int ddepth,
                 Size ksize, Point anchor,
                 bool normalize, int borderType )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     CV_OCL_RUN(_dst.isUMat() &&
                (borderType == BORDER_REPLICATE || borderType == BORDER_CONSTANT ||
@@ -1578,7 +1578,7 @@ void cv::boxFilter( InputArray _src, OutputArray _dst, int ddepth,
 void cv::blur( InputArray src, OutputArray dst,
            Size ksize, Point anchor, int borderType )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     boxFilter( src, dst, -1, ksize, anchor, true, borderType );
 }
@@ -1660,7 +1660,7 @@ void cv::sqrBoxFilter( InputArray _src, OutputArray _dst, int ddepth,
                        Size ksize, Point anchor,
                        bool normalize, int borderType )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     int srcType = _src.type(), sdepth = CV_MAT_DEPTH(srcType), cn = CV_MAT_CN(srcType);
     Size size = _src.size();
@@ -1825,7 +1825,7 @@ void hlineSmooth1N<uint8_t, ufixedpoint16>(const uint8_t* src, int cn, const ufi
     const int VECSZ = v_uint16::nlanes;
     v_uint16 v_mul = vx_setall_u16(*((uint16_t*)m));
     for (; i <= lencn - VECSZ; i += VECSZ)
-        v_store((uint16_t*)dst + i, v_mul*vx_load_expand(src + i));
+        v_store((uint16_t*)dst + i, v_mul_wrap(v_mul, vx_load_expand(src + i)));
 #endif
     for (; i < lencn; i++)
         dst[i] = m[0] * src[i];
@@ -1915,7 +1915,9 @@ void hlineSmooth3N<uint8_t, ufixedpoint16>(const uint8_t* src, int cn, const ufi
         v_uint16 v_mul1 = vx_setall_u16(_m[1]);
         v_uint16 v_mul2 = vx_setall_u16(_m[2]);
         for (; i <= lencn - VECSZ; i += VECSZ, src += VECSZ, dst += VECSZ)
-            v_store((uint16_t*)dst, vx_load_expand(src - cn) * v_mul0 + vx_load_expand(src) * v_mul1 + vx_load_expand(src + cn) * v_mul2);
+            v_store((uint16_t*)dst, v_mul_wrap(vx_load_expand(src - cn), v_mul0) +
+                                    v_mul_wrap(vx_load_expand(src), v_mul1) +
+                                    v_mul_wrap(vx_load_expand(src + cn), v_mul2));
 #endif
         for (; i < lencn; i++, src++, dst++)
             *dst = m[0] * src[-cn] + m[1] * src[0] + m[2] * src[cn];
@@ -2089,7 +2091,8 @@ void hlineSmooth3Naba<uint8_t, ufixedpoint16>(const uint8_t* src, int cn, const 
         v_uint16 v_mul0 = vx_setall_u16(_m[0]);
         v_uint16 v_mul1 = vx_setall_u16(_m[1]);
         for (; i <= lencn - VECSZ; i += VECSZ, src += VECSZ, dst += VECSZ)
-            v_store((uint16_t*)dst, (vx_load_expand(src - cn) + vx_load_expand(src + cn)) * v_mul0 + vx_load_expand(src) * v_mul1);
+            v_store((uint16_t*)dst, v_mul_wrap(vx_load_expand(src - cn) + vx_load_expand(src + cn), v_mul0) +
+                                    v_mul_wrap(vx_load_expand(src), v_mul1));
 #endif
         for (; i < lencn; i++, src++, dst++)
             *((uint16_t*)dst) = ((uint16_t*)m)[1] * src[0] + ((uint16_t*)m)[0] * ((uint16_t)(src[-cn]) + (uint16_t)(src[cn]));
@@ -2285,7 +2288,11 @@ void hlineSmooth5N<uint8_t, ufixedpoint16>(const uint8_t* src, int cn, const ufi
         v_uint16 v_mul3 = vx_setall_u16(_m[3]);
         v_uint16 v_mul4 = vx_setall_u16(_m[4]);
         for (; i <= lencn - VECSZ; i += VECSZ, src += VECSZ, dst += VECSZ)
-            v_store((uint16_t*)dst, vx_load_expand(src - 2 * cn) * v_mul0 + vx_load_expand(src - cn) * v_mul1 + vx_load_expand(src) * v_mul2 + vx_load_expand(src + cn) * v_mul3 + vx_load_expand(src + 2 * cn) * v_mul4);
+            v_store((uint16_t*)dst, v_mul_wrap(vx_load_expand(src - 2 * cn), v_mul0) +
+                                    v_mul_wrap(vx_load_expand(src - cn), v_mul1) +
+                                    v_mul_wrap(vx_load_expand(src), v_mul2) +
+                                    v_mul_wrap(vx_load_expand(src + cn), v_mul3) +
+                                    v_mul_wrap(vx_load_expand(src + 2 * cn), v_mul4));
 #endif
         for (; i < lencn; i++, src++, dst++)
             *dst = m[0] * src[-2*cn] + m[1] * src[-cn] + m[2] * src[0] + m[3] * src[cn] + m[4] * src[2*cn];
@@ -2488,7 +2495,7 @@ void hlineSmooth5N14641<uint8_t, ufixedpoint16>(const uint8_t* src, int cn, cons
         const int VECSZ = v_uint16::nlanes;
         v_uint16 v_6 = vx_setall_u16(6);
         for (; i <= lencn - VECSZ; i += VECSZ, src += VECSZ, dst += VECSZ)
-            v_store((uint16_t*)dst, (vx_load_expand(src) * v_6 + ((vx_load_expand(src - cn) + vx_load_expand(src + cn)) << 2) + vx_load_expand(src - 2 * cn) + vx_load_expand(src + 2 * cn)) << 4);
+            v_store((uint16_t*)dst, (v_mul_wrap(vx_load_expand(src), v_6) + ((vx_load_expand(src - cn) + vx_load_expand(src + cn)) << 2) + vx_load_expand(src - 2 * cn) + vx_load_expand(src + 2 * cn)) << 4);
 #endif
         for (; i < lencn; i++, src++, dst++)
             *((uint16_t*)dst) = (uint16_t(src[0]) * 6 + ((uint16_t(src[-cn]) + uint16_t(src[cn])) << 2) + uint16_t(src[-2 * cn]) + uint16_t(src[2 * cn])) << 4;
@@ -2689,7 +2696,9 @@ void hlineSmooth5Nabcba<uint8_t, ufixedpoint16>(const uint8_t* src, int cn, cons
         v_uint16 v_mul1 = vx_setall_u16(_m[1]);
         v_uint16 v_mul2 = vx_setall_u16(_m[2]);
         for (; i <= lencn - VECSZ; i += VECSZ, src += VECSZ, dst += VECSZ)
-            v_store((uint16_t*)dst, (vx_load_expand(src - 2 * cn) + vx_load_expand(src + 2 * cn)) * v_mul0 + (vx_load_expand(src - cn) + vx_load_expand(src + cn))* v_mul1 + vx_load_expand(src) * v_mul2);
+            v_store((uint16_t*)dst, v_mul_wrap(vx_load_expand(src - 2 * cn) + vx_load_expand(src + 2 * cn), v_mul0) +
+                                    v_mul_wrap(vx_load_expand(src - cn) + vx_load_expand(src + cn), v_mul1) +
+                                    v_mul_wrap(vx_load_expand(src), v_mul2));
 #endif
         for (; i < lencn; i++, src++, dst++)
             *((uint16_t*)dst) = ((uint16_t*)m)[0] * ((uint16_t)(src[-2 * cn]) + (uint16_t)(src[2 * cn])) + ((uint16_t*)m)[1] * ((uint16_t)(src[-cn]) + (uint16_t)(src[cn])) + ((uint16_t*)m)[2] * src[0];
@@ -2804,9 +2813,9 @@ void hlineSmooth<uint8_t, ufixedpoint16>(const uint8_t* src, int cn, const ufixe
     const int VECSZ = v_uint16::nlanes;
     for (; i <= lencn - VECSZ; i+=VECSZ, src+=VECSZ, dst+=VECSZ)
     {
-        v_uint16 v_res0 = vx_load_expand(src) * vx_setall_u16(*((uint16_t*)m));
+        v_uint16 v_res0 = v_mul_wrap(vx_load_expand(src), vx_setall_u16(*((uint16_t*)m)));
         for (int j = 1; j < n; j++)
-            v_res0 += vx_load_expand(src + j * cn) * vx_setall_u16(*((uint16_t*)(m + j)));
+            v_res0 += v_mul_wrap(vx_load_expand(src + j * cn), vx_setall_u16(*((uint16_t*)(m + j))));
         v_store((uint16_t*)dst, v_res0);
     }
 #endif
@@ -2923,9 +2932,9 @@ void hlineSmoothONa_yzy_a<uint8_t, ufixedpoint16>(const uint8_t* src, int cn, co
     const int VECSZ = v_uint16::nlanes;
     for (; i <= lencn - VECSZ; i += VECSZ, src += VECSZ, dst += VECSZ)
     {
-        v_uint16 v_res0 = vx_load_expand(src + pre_shift * cn) * vx_setall_u16(*((uint16_t*)(m + pre_shift)));
+        v_uint16 v_res0 = v_mul_wrap(vx_load_expand(src + pre_shift * cn), vx_setall_u16(*((uint16_t*)(m + pre_shift))));
         for (int j = 0; j < pre_shift; j ++)
-            v_res0 += (vx_load_expand(src + j * cn) + vx_load_expand(src + (n - 1 - j)*cn)) * vx_setall_u16(*((uint16_t*)(m + j)));
+            v_res0 += v_mul_wrap(vx_load_expand(src + j * cn) + vx_load_expand(src + (n - 1 - j)*cn), vx_setall_u16(*((uint16_t*)(m + j))));
         v_store((uint16_t*)dst, v_res0);
     }
 #endif
@@ -3981,7 +3990,7 @@ public:
 
     virtual void operator() (const Range& range) const CV_OVERRIDE
     {
-        CV_INSTRUMENT_REGION_IPP()
+        CV_INSTRUMENT_REGION_IPP();
 
         if(!*m_pOk)
             return;
@@ -4015,7 +4024,7 @@ static bool ipp_GaussianBlur(InputArray _src, OutputArray _dst, Size ksize,
                    double sigma1, double sigma2, int borderType )
 {
 #ifdef HAVE_IPP_IW
-    CV_INSTRUMENT_REGION_IPP()
+    CV_INSTRUMENT_REGION_IPP();
 
 #if IPP_VERSION_X100 < 201800 && ((defined _MSC_VER && defined _M_IX86) || (defined __GNUC__ && defined __i386__))
     CV_UNUSED(_src); CV_UNUSED(_dst); CV_UNUSED(ksize); CV_UNUSED(sigma1); CV_UNUSED(sigma2); CV_UNUSED(borderType);
@@ -4077,7 +4086,7 @@ void cv::GaussianBlur( InputArray _src, OutputArray _dst, Size ksize,
                    double sigma1, double sigma2,
                    int borderType )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     int type = _src.type();
     Size size = _src.size();
@@ -4102,7 +4111,7 @@ void cv::GaussianBlur( InputArray _src, OutputArray _dst, Size ksize,
                ((ksize.width == 3 && ksize.height == 3) ||
                (ksize.width == 5 && ksize.height == 5)) &&
                _src.rows() > ksize.height && _src.cols() > ksize.width);
-    (void)useOpenCL;
+    CV_UNUSED(useOpenCL);
 
     int sdepth = CV_MAT_DEPTH(type), cn = CV_MAT_CN(type);
 
@@ -5060,7 +5069,7 @@ namespace cv
 {
 static bool ipp_medianFilter(Mat &src0, Mat &dst, int ksize)
 {
-    CV_INSTRUMENT_REGION_IPP()
+    CV_INSTRUMENT_REGION_IPP();
 
 #if IPP_VERSION_X100 < 201801
     // Degradations for big kernel
@@ -5133,7 +5142,7 @@ static bool ipp_medianFilter(Mat &src0, Mat &dst, int ksize)
 
 void cv::medianBlur( InputArray _src0, OutputArray _dst, int ksize )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     CV_Assert( (ksize % 2 == 1) && (_src0.dims() <= 2 ));
 
@@ -5887,7 +5896,7 @@ private:
 static bool ipp_bilateralFilter(Mat &src, Mat &dst, int d, double sigmaColor, double sigmaSpace, int borderType)
 {
 #ifdef HAVE_IPP_IW
-    CV_INSTRUMENT_REGION_IPP()
+    CV_INSTRUMENT_REGION_IPP();
 
     int         radius         = IPP_MAX(((d <= 0)?cvRound(sigmaSpace*1.5):d/2), 1);
     Ipp32f      valSquareSigma = (Ipp32f)((sigmaColor <= 0)?1:sigmaColor*sigmaColor);
@@ -5937,7 +5946,7 @@ void cv::bilateralFilter( InputArray _src, OutputArray _dst, int d,
                       double sigmaColor, double sigmaSpace,
                       int borderType )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     _dst.create( _src.size(), _src.type() );
 

@@ -257,7 +257,7 @@ static testing::internal::ParamGenerator<tuple<Backend, Target> > dnnBackendsAnd
     {
         targets.push_back(make_tuple(DNN_BACKEND_INFERENCE_ENGINE, DNN_TARGET_CPU));
 #ifdef HAVE_OPENCL
-        if (cv::ocl::useOpenCL())
+        if (cv::ocl::useOpenCL() && ocl::Device::getDefault().isIntel())
         {
             targets.push_back(make_tuple(DNN_BACKEND_INFERENCE_ENGINE, DNN_TARGET_OPENCL));
             targets.push_back(make_tuple(DNN_BACKEND_INFERENCE_ENGINE, DNN_TARGET_OPENCL_FP16));
@@ -276,6 +276,8 @@ static testing::internal::ParamGenerator<tuple<Backend, Target> > dnnBackendsAnd
         targets.push_back(make_tuple(DNN_BACKEND_OPENCV, DNN_TARGET_OPENCL_FP16));
     }
 #endif
+    if (targets.empty())  // validate at least CPU mode
+        targets.push_back(make_tuple(DNN_BACKEND_OPENCV, DNN_TARGET_CPU));
     return testing::ValuesIn(targets);
 }
 

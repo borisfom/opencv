@@ -407,10 +407,13 @@ template<typename R> struct TheTest
 
         Data<Rx2> resB = vx_load_expand(dataA.d);
 
-        Rx2 c, d;
+        Rx2 c, d, e, f;
         v_expand(a, c, d);
 
-        Data<Rx2> resC = c, resD = d;
+        e = v_expand_low(a);
+        f = v_expand_high(a);
+
+        Data<Rx2> resC = c, resD = d, resE = e, resF = f;
         const int n = Rx2::nlanes;
         for (int i = 0; i < n; ++i)
         {
@@ -418,6 +421,8 @@ template<typename R> struct TheTest
             EXPECT_EQ(dataA[i], resB[i]);
             EXPECT_EQ(dataA[i], resC[i]);
             EXPECT_EQ(dataA[i + n], resD[i]);
+            EXPECT_EQ(dataA[i], resE[i]);
+            EXPECT_EQ(dataA[i + n], resF[i]);
         }
 
         return *this;
@@ -455,19 +460,21 @@ template<typename R> struct TheTest
         return *this;
     }
 
-    TheTest & test_addsub_wrap()
+    TheTest & test_arithm_wrap()
     {
         Data<R> dataA, dataB;
         dataB.reverse();
         R a = dataA, b = dataB;
 
         Data<R> resC = v_add_wrap(a, b),
-                resD = v_sub_wrap(a, b);
+                resD = v_sub_wrap(a, b),
+                resE = v_mul_wrap(a, b);
         for (int i = 0; i < R::nlanes; ++i)
         {
             SCOPED_TRACE(cv::format("i=%d", i));
             EXPECT_EQ((LaneType)(dataA[i] + dataB[i]), resC[i]);
             EXPECT_EQ((LaneType)(dataA[i] - dataB[i]), resD[i]);
+            EXPECT_EQ((LaneType)(dataA[i] * dataB[i]), resE[i]);
         }
         return *this;
     }
@@ -475,6 +482,7 @@ template<typename R> struct TheTest
     TheTest & test_mul()
     {
         Data<R> dataA, dataB;
+        dataA[1] = static_cast<LaneType>(std::numeric_limits<LaneType>::max());
         dataB.reverse();
         R a = dataA, b = dataB;
 
@@ -482,7 +490,7 @@ template<typename R> struct TheTest
         for (int i = 0; i < R::nlanes; ++i)
         {
             SCOPED_TRACE(cv::format("i=%d", i));
-            EXPECT_EQ(dataA[i] * dataB[i], resC[i]);
+            EXPECT_EQ(saturate_cast<LaneType>(dataA[i] * dataB[i]), resC[i]);
         }
 
         return *this;
@@ -1123,7 +1131,6 @@ template<typename R> struct TheTest
         return *this;
     }
 
-#if CV_FP16
     TheTest & test_loadstore_fp16_f32()
     {
         printf("test_loadstore_fp16_f32 ...\n");
@@ -1133,14 +1140,14 @@ template<typename R> struct TheTest
         AlignedData<v_float32> data_f32; data_f32.a.clear();
         AlignedData<v_uint16> out;
 
-        R r1 = vx_load_fp16_f32((short*)data.a.d);
+        R r1 = vx_load_expand((const cv::float16_t*)data.a.d);
         R r2(r1);
         EXPECT_EQ(1.0f, r1.get0());
         vx_store(data_f32.a.d, r2);
         EXPECT_EQ(-2.0f, data_f32.a.d[R::nlanes - 1]);
 
         out.a.clear();
-        vx_store_fp16((short*)out.a.d, r2);
+        v_pack_store((cv::float16_t*)out.a.d, r2);
         for (int i = 0; i < R::nlanes; ++i)
         {
             EXPECT_EQ(data.a[i], out.a[i]) << "i=" << i;
@@ -1148,9 +1155,8 @@ template<typename R> struct TheTest
 
         return *this;
     }
-#endif
 
-#if CV_SIMD_FP16
+#if 0
     TheTest & test_loadstore_fp16()
     {
         printf("test_loadstore_fp16 ...\n");
@@ -1165,7 +1171,7 @@ template<typename R> struct TheTest
 
         // check some initialization methods
         R r1 = data.u;
-        R r2 = vx_load_f16(data.a.d);
+        R r2 = vx_load_expand((const float16_t*)data.a.d);
         R r3(r2);
         EXPECT_EQ(data.u[0], r1.get0());
         EXPECT_EQ(data.a[0], r2.get0());
@@ -1211,7 +1217,9 @@ void test_hal_intrin_uint8()
         .test_expand()
         .test_expand_q()
         .test_addsub()
-        .test_addsub_wrap()
+        .test_arithm_wrap()
+        .test_mul()
+        .test_mul_expand()
         .test_cmp()
         .test_logic()
         .test_min_max()
@@ -1244,7 +1252,9 @@ void test_hal_intrin_int8()
         .test_expand()
         .test_expand_q()
         .test_addsub()
-        .test_addsub_wrap()
+        .test_arithm_wrap()
+        .test_mul()
+        .test_mul_expand()
         .test_cmp()
         .test_logic()
         .test_min_max()
@@ -1269,7 +1279,7 @@ void test_hal_intrin_uint16()
         .test_interleave()
         .test_expand()
         .test_addsub()
-        .test_addsub_wrap()
+        .test_arithm_wrap()
         .test_mul()
         .test_mul_expand()
         .test_cmp()
@@ -1297,7 +1307,7 @@ void test_hal_intrin_int16()
         .test_interleave()
         .test_expand()
         .test_addsub()
-        .test_addsub_wrap()
+        .test_arithm_wrap()
         .test_mul()
         .test_mul_expand()
         .test_cmp()

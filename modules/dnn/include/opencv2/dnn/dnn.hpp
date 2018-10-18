@@ -158,8 +158,6 @@ CV__DNN_INLINE_NS_BEGIN
     };
 
     class CV_EXPORTS ActivationLayer;
-    class CV_EXPORTS BatchNormLayer;
-    class CV_EXPORTS ScaleLayer;
 
     /** @brief This interface class allows to build new Layers - are building blocks of networks.
      *
@@ -174,20 +172,31 @@ CV__DNN_INLINE_NS_BEGIN
         CV_PROP_RW std::vector<Mat> blobs;
 
         /** @brief Computes and sets internal parameters according to inputs, outputs and blobs.
+         *  @deprecated Use Layer::finalize(InputArrayOfArrays, OutputArrayOfArrays) instead
          *  @param[in]  input  vector of already allocated input blobs
          *  @param[out] output vector of already allocated output blobs
          *
          * If this method is called after network has allocated all memory for input and output blobs
          * and before inferencing.
          */
-        virtual void finalize(const std::vector<Mat*> &input, std::vector<Mat> &output);
+        CV_DEPRECATED virtual void finalize(const std::vector<Mat*> &input, std::vector<Mat> &output);
+
+        /** @brief Computes and sets internal parameters according to inputs, outputs and blobs.
+         *  @param[in]  inputs  vector of already allocated input blobs
+         *  @param[out] outputs vector of already allocated output blobs
+         *
+         * If this method is called after network has allocated all memory for input and output blobs
+         * and before inferencing.
+         */
+        CV_WRAP virtual void finalize(InputArrayOfArrays inputs, OutputArrayOfArrays outputs);
 
         /** @brief Given the @p input blobs, computes the output @p blobs.
+         *  @deprecated Use Layer::forward(InputArrayOfArrays, OutputArrayOfArrays, OutputArrayOfArrays) instead
          *  @param[in]  input  the input blobs.
          *  @param[out] output allocated output blobs, which will store results of the computation.
          *  @param[out] internals allocated internal blobs
          */
-        virtual void forward(std::vector<Mat*> &input, std::vector<Mat> &output, std::vector<Mat> &internals) = 0;
+        CV_DEPRECATED virtual void forward(std::vector<Mat*> &input, std::vector<Mat> &output, std::vector<Mat> &internals);
 
         /** @brief Given the @p input blobs, computes the output @p blobs.
          *  @param[in]  inputs  the input blobs.
@@ -203,15 +212,23 @@ CV__DNN_INLINE_NS_BEGIN
          */
         void forward_fallback(InputArrayOfArrays inputs, OutputArrayOfArrays outputs, OutputArrayOfArrays internals);
 
-        /** @brief @overload */
-        CV_WRAP void finalize(const std::vector<Mat> &inputs, CV_OUT std::vector<Mat> &outputs);
+        /** @brief
+         * @overload
+         * @deprecated Use Layer::finalize(InputArrayOfArrays, OutputArrayOfArrays) instead
+         */
+        CV_DEPRECATED void finalize(const std::vector<Mat> &inputs, CV_OUT std::vector<Mat> &outputs);
 
-        /** @brief @overload */
-        CV_WRAP std::vector<Mat> finalize(const std::vector<Mat> &inputs);
+        /** @brief
+         * @overload
+         * @deprecated Use Layer::finalize(InputArrayOfArrays, OutputArrayOfArrays) instead
+         */
+        CV_DEPRECATED std::vector<Mat> finalize(const std::vector<Mat> &inputs);
 
-        /** @brief Allocates layer and computes output. */
-        CV_WRAP void run(const std::vector<Mat> &inputs, CV_OUT std::vector<Mat> &outputs,
-                         CV_IN_OUT std::vector<Mat> &internals);
+        /** @brief Allocates layer and computes output.
+         *  @deprecated This method will be removed in the future release.
+         */
+        CV_DEPRECATED CV_WRAP void run(const std::vector<Mat> &inputs, CV_OUT std::vector<Mat> &outputs,
+                                       CV_IN_OUT std::vector<Mat> &internals);
 
         /** @brief Returns index of input blob into the input array.
          *  @param inputName label of input blob
@@ -313,7 +330,7 @@ CV__DNN_INLINE_NS_BEGIN
                                      std::vector<MatShape> &outputs,
                                      std::vector<MatShape> &internals) const;
         virtual int64 getFLOPS(const std::vector<MatShape> &inputs,
-                               const std::vector<MatShape> &outputs) const {(void)inputs; (void)outputs; return 0;}
+                               const std::vector<MatShape> &outputs) const {CV_UNUSED(inputs); CV_UNUSED(outputs); return 0;}
 
         CV_PROP String name; //!< Name of the layer instance, can be used for logging or other internal purposes.
         CV_PROP String type; //!< Type name which was used for creating layer by layer factory.
@@ -380,9 +397,6 @@ CV__DNN_INLINE_NS_BEGIN
 
         /** @brief Returns pointers to input layers of specific layer. */
         std::vector<Ptr<Layer> > getLayerInputs(LayerId layerId); // FIXIT: CV_WRAP
-
-        /** @brief Delete layer for the network (not implemented yet) */
-        CV_WRAP void deleteLayer(LayerId layer);
 
         /** @brief Connects output of the first layer to input of the second layer.
          *  @param outPin descriptor of the first layer output.
@@ -514,6 +528,11 @@ CV__DNN_INLINE_NS_BEGIN
         /** @brief Returns indexes of layers with unconnected outputs.
          */
         CV_WRAP std::vector<int> getUnconnectedOutLayers() const;
+
+        /** @brief Returns names of layers with unconnected outputs.
+         */
+        CV_WRAP std::vector<String> getUnconnectedOutLayersNames() const;
+
         /** @brief Returns input and output shapes for all layers in loaded model;
          *  preliminary inferencing isn't necessary.
          *  @param netInputShapes shapes for all input blobs in net input layer.
@@ -793,6 +812,18 @@ CV__DNN_INLINE_NS_BEGIN
      */
     CV_EXPORTS_W Net readNetFromModelOptimizer(const String &xml, const String &bin);
 
+    /** @brief Reads a network model <a href="https://onnx.ai/">ONNX</a>.
+     *  @param onnxFile path to the .onnx file with text description of the network architecture.
+     *  @returns Network object that ready to do forward, throw an exception in failure cases.
+     */
+    CV_EXPORTS_W Net readNetFromONNX(const String &onnxFile);
+
+    /** @brief Creates blob from .pb file.
+     *  @param path to the .pb file with input tensor.
+     *  @returns Mat.
+     */
+    CV_EXPORTS_W Mat readTensorFromONNX(const String& path);
+
     /** @brief Creates 4-dimensional blob from image. Optionally resizes and crops @p image from center,
      *  subtract @p mean values, scales values by @p scalefactor, swap Blue and Red channels.
      *  @param image input image (with 1-, 3- or 4-channels).
@@ -810,7 +841,7 @@ CV__DNN_INLINE_NS_BEGIN
      *  @returns 4-dimensional Mat with NCHW dimensions order.
      */
     CV_EXPORTS_W Mat blobFromImage(InputArray image, double scalefactor=1.0, const Size& size = Size(),
-                                   const Scalar& mean = Scalar(), bool swapRB=true, bool crop=true,
+                                   const Scalar& mean = Scalar(), bool swapRB=false, bool crop=false,
                                    int ddepth=CV_32F);
 
     /** @brief Creates 4-dimensional blob from image.
@@ -819,7 +850,7 @@ CV__DNN_INLINE_NS_BEGIN
      */
     CV_EXPORTS void blobFromImage(InputArray image, OutputArray blob, double scalefactor=1.0,
                                   const Size& size = Size(), const Scalar& mean = Scalar(),
-                                  bool swapRB=true, bool crop=true, int ddepth=CV_32F);
+                                  bool swapRB=false, bool crop=false, int ddepth=CV_32F);
 
 
     /** @brief Creates 4-dimensional blob from series of images. Optionally resizes and
@@ -840,7 +871,7 @@ CV__DNN_INLINE_NS_BEGIN
      *  @returns 4-dimensional Mat with NCHW dimensions order.
      */
     CV_EXPORTS_W Mat blobFromImages(InputArrayOfArrays images, double scalefactor=1.0,
-                                    Size size = Size(), const Scalar& mean = Scalar(), bool swapRB=true, bool crop=true,
+                                    Size size = Size(), const Scalar& mean = Scalar(), bool swapRB=false, bool crop=false,
                                     int ddepth=CV_32F);
 
     /** @brief Creates 4-dimensional blob from series of images.
@@ -849,7 +880,7 @@ CV__DNN_INLINE_NS_BEGIN
      */
     CV_EXPORTS void blobFromImages(InputArrayOfArrays images, OutputArray blob,
                                    double scalefactor=1.0, Size size = Size(),
-                                   const Scalar& mean = Scalar(), bool swapRB=true, bool crop=true,
+                                   const Scalar& mean = Scalar(), bool swapRB=false, bool crop=false,
                                    int ddepth=CV_32F);
 
     /** @brief Parse a 4D blob and output the images it contains as 2D arrays through a simpler data structure
@@ -901,10 +932,22 @@ CV__DNN_INLINE_NS_BEGIN
                                CV_OUT std::vector<int>& indices,
                                const float eta = 1.f, const int top_k = 0);
 
+    CV_EXPORTS_W void NMSBoxes(const std::vector<Rect2d>& bboxes, const std::vector<float>& scores,
+                               const float score_threshold, const float nms_threshold,
+                               CV_OUT std::vector<int>& indices,
+                               const float eta = 1.f, const int top_k = 0);
+
     CV_EXPORTS_AS(NMSBoxesRotated) void NMSBoxes(const std::vector<RotatedRect>& bboxes, const std::vector<float>& scores,
                              const float score_threshold, const float nms_threshold,
                              CV_OUT std::vector<int>& indices,
                              const float eta = 1.f, const int top_k = 0);
+
+    /** @brief Release a Myriad device is binded by OpenCV.
+     *
+     * Single Myriad device cannot be shared across multiple processes which uses
+     * Inference Engine's Myriad plugin.
+     */
+    CV_EXPORTS_W void resetMyriadDevice();
 
 //! @}
 CV__DNN_INLINE_NS_END

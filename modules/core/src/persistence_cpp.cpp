@@ -56,7 +56,7 @@ FileStorage::~FileStorage()
 
 bool FileStorage::open(const String& filename, int flags, const String& encoding)
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     release();
     fs.reset(cvOpenFileStorage( filename.c_str(), 0, flags,
@@ -274,6 +274,20 @@ FileNode FileNode::operator[](int i) const
         i == 0 ? *this : FileNode();
 }
 
+std::vector<String> FileNode::keys() const
+{
+    std::vector<String> res;
+    if (isMap())
+    {
+        res.reserve(size());
+        for (FileNodeIterator it = begin(); it != end(); ++it)
+        {
+            res.push_back((*it).name());
+        }
+    }
+    return res;
+}
+
 String FileNode::name() const
 {
     const char* str;
@@ -457,12 +471,12 @@ void write( FileStorage& fs, const String& name, const Mat& value )
 {
     if( value.dims <= 2 )
     {
-        CvMat mat = value;
+        CvMat mat = cvMat(value);
         cvWrite( *fs, name.size() ? name.c_str() : 0, &mat );
     }
     else
     {
-        CvMatND mat = value;
+        CvMatND mat = cvMatND(value);
         cvWrite( *fs, name.size() ? name.c_str() : 0, &mat );
     }
 }
@@ -537,7 +551,7 @@ void read( const FileNode& node, SparseMat& mat, const SparseMat& default_mat )
         return;
     }
     Ptr<CvSparseMat> m((CvSparseMat*)cvRead((CvFileStorage*)node.fs, (CvFileNode*)*node));
-    CV_Assert(CV_IS_SPARSE_MAT(m));
+    CV_Assert(CV_IS_SPARSE_MAT(m.get()));
     m->copyToSparseMat(mat);
 }
 

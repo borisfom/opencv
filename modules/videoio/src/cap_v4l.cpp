@@ -267,6 +267,8 @@ struct buffer
 
 struct CvCaptureCAM_V4L CV_FINAL : public CvCapture
 {
+    int getCaptureDomain() /*const*/ CV_OVERRIDE { return cv::CAP_V4L; }
+
     int deviceHandle;
     int bufferIndex;
     int FirstCapture;
@@ -553,7 +555,7 @@ static int v4l2_num_channels(__u32 palette) {
 }
 
 static void v4l2_create_frame(CvCaptureCAM_V4L *capture) {
-    CvSize size(capture->form.fmt.pix.width, capture->form.fmt.pix.height);
+    CvSize size = {capture->form.fmt.pix.width, capture->form.fmt.pix.height};
     int channels = 3;
     int depth = IPL_DEPTH_8U;
 
@@ -563,7 +565,7 @@ static void v4l2_create_frame(CvCaptureCAM_V4L *capture) {
         switch(capture->palette) {
         case V4L2_PIX_FMT_MJPEG:
         case V4L2_PIX_FMT_JPEG:
-            size = CvSize(capture->buffers[capture->bufferIndex].length, 1);
+            size = cvSize(capture->buffers[capture->bufferIndex].length, 1);
             break;
         case V4L2_PIX_FMT_YVU420:
         case V4L2_PIX_FMT_YUV420:
@@ -1741,7 +1743,7 @@ static bool icvSetControl (CvCaptureCAM_V4L* capture,
         fprintf(stderr,
                 "VIDEOIO ERROR: V4L2: setting property #%d is not supported\n",
                 property_id);
-        return -1;
+        return false;
     }
 
     /* get the min/max values */

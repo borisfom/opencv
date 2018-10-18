@@ -896,7 +896,7 @@ static bool ocl_gemm( InputArray matA, InputArray matB, double alpha,
 static void gemmImpl( Mat A, Mat B, double alpha,
            Mat C, double beta, Mat D, int flags )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     const int block_lin_size = 128;
     const int block_size = block_lin_size * block_lin_size;
@@ -2081,7 +2081,7 @@ static TransformFunc getDiagTransformFunc(int depth)
 
 void cv::transform( InputArray _src, OutputArray _dst, InputArray _mtx )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     Mat src = _src.getMat(), m = _mtx.getMat();
     int depth = src.depth(), scn = src.channels(), dcn = m.rows;
@@ -2261,7 +2261,7 @@ perspectiveTransform_64f(const double* src, double* dst, const double* m, int le
 
 void cv::perspectiveTransform( InputArray _src, OutputArray _dst, InputArray _mtx )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     Mat src = _src.getMat(), m = _mtx.getMat();
     int depth = src.depth(), scn = src.channels(), dcn = m.rows-1;
@@ -2310,18 +2310,12 @@ static void scaleAdd_32f(const float* src1, const float* src2, float* dst,
 {
     float alpha = *_alpha;
     int i = 0;
-#if CV_SIMD128
-    if (hasSIMD128())
-    {
-        v_float32x4 v_alpha = v_setall_f32(alpha);
-        const int cWidth = v_float32x4::nlanes;
-        for (; i <= len - cWidth; i += cWidth)
-        {
-            v_float32x4 v_src1 = v_load(src1 + i);
-            v_float32x4 v_src2 = v_load(src2 + i);
-            v_store(dst + i, (v_src1 * v_alpha) + v_src2);
-        }
-    }
+#if CV_SIMD
+    v_float32 v_alpha = vx_setall_f32(alpha);
+    const int cWidth = v_float32::nlanes;
+    for (; i <= len - cWidth; i += cWidth)
+        v_store(dst + i, v_muladd(vx_load(src1 + i), v_alpha, vx_load(src2 + i)));
+    vx_cleanup();
 #endif
     for (; i < len; i++)
         dst[i] = src1[i] * alpha + src2[i];
@@ -2333,22 +2327,12 @@ static void scaleAdd_64f(const double* src1, const double* src2, double* dst,
 {
     double alpha = *_alpha;
     int i = 0;
-#if CV_SIMD128_64F
-    if (hasSIMD128())
-    {
-        v_float64x2 a2 = v_setall_f64(alpha);
-        const int cWidth = v_float64x2::nlanes;
-        for (; i <= len - cWidth * 2; i += cWidth * 2)
-        {
-            v_float64x2 x0, x1, y0, y1, t0, t1;
-            x0 = v_load(src1 + i); x1 = v_load(src1 + i + cWidth);
-            y0 = v_load(src2 + i); y1 = v_load(src2 + i + cWidth);
-            t0 = x0 * a2 + y0;
-            t1 = x1 * a2 + y1;
-            v_store(dst + i, t0);
-            v_store(dst + i + cWidth, t1);
-        }
-    }
+#if CV_SIMD_64F
+    v_float64 a2 = vx_setall_f64(alpha);
+    const int cWidth = v_float64::nlanes;
+    for (; i <= len - cWidth; i += cWidth)
+        v_store(dst + i, v_muladd(vx_load(src1 + i), a2, vx_load(src2 + i)));
+    vx_cleanup();
 #endif
     for (; i < len; i++)
         dst[i] = src1[i] * alpha + src2[i];
@@ -2375,10 +2359,10 @@ static bool ocl_scaleAdd( InputArray _src1, double alpha, InputArray _src2, Outp
 
     char cvt[2][50];
     ocl::Kernel k("KF", ocl::core::arithm_oclsrc,
-                  format("-D OP_SCALE_ADD -D BINARY_OP -D dstT=%s -D workT=%s -D convertToWT1=%s"
+                  format("-D OP_SCALE_ADD -D BINARY_OP -D dstT=%s -D DEPTH_dst=%d -D workT=%s -D convertToWT1=%s"
                          " -D srcT1=dstT -D srcT2=dstT -D convertToDT=%s -D workT1=%s"
                          " -D wdepth=%d%s -D rowsPerWI=%d",
-                         ocl::typeToStr(CV_MAKE_TYPE(depth, kercn)),
+                         ocl::typeToStr(CV_MAKE_TYPE(depth, kercn)), depth,
                          ocl::typeToStr(CV_MAKE_TYPE(wdepth, kercn)),
                          ocl::convertTypeStr(depth, wdepth, kercn, cvt[0]),
                          ocl::convertTypeStr(wdepth, depth, kercn, cvt[1]),
@@ -2408,7 +2392,7 @@ static bool ocl_scaleAdd( InputArray _src1, double alpha, InputArray _src2, Outp
 
 void cv::scaleAdd( InputArray _src1, double alpha, InputArray _src2, OutputArray _dst )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     int type = _src1.type(), depth = CV_MAT_DEPTH(type), cn = CV_MAT_CN(type);
     CV_Assert( type == _src2.type() );
@@ -2455,7 +2439,7 @@ void cv::scaleAdd( InputArray _src1, double alpha, InputArray _src2, OutputArray
 
 void cv::calcCovarMatrix( const Mat* data, int nsamples, Mat& covar, Mat& _mean, int flags, int ctype )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     CV_Assert_N( data, nsamples > 0 );
     Size size = data[0].size();
@@ -2497,7 +2481,7 @@ void cv::calcCovarMatrix( const Mat* data, int nsamples, Mat& covar, Mat& _mean,
 
 void cv::calcCovarMatrix( InputArray _src, OutputArray _covar, InputOutputArray _mean, int flags, int ctype )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     if(_src.kind() == _InputArray::STD_VECTOR_MAT || _src.kind() == _InputArray::STD_ARRAY_MAT)
     {
@@ -2586,7 +2570,7 @@ void cv::calcCovarMatrix( InputArray _src, OutputArray _covar, InputOutputArray 
 
 double cv::Mahalanobis( InputArray _v1, InputArray _v2, InputArray _icovar )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     Mat v1 = _v1.getMat(), v2 = _v2.getMat(), icovar = _icovar.getMat();
     int type = v1.type(), depth = v1.depth();
@@ -2878,7 +2862,7 @@ typedef void (*MulTransposedFunc)(const Mat& src, Mat& dst, const Mat& delta, do
 void cv::mulTransposed( InputArray _src, OutputArray _dst, bool ata,
                         InputArray _delta, double scale, int dtype )
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     Mat src = _src.getMat(), delta = _delta.getMat();
     const int gemm_level = 100; // boundary above which GEMM is faster.
@@ -3025,42 +3009,40 @@ static double dotProd_8u(const uchar* src1, const uchar* src2, int len)
 #endif
     int i = 0;
 
-#if CV_SIMD128
-    if (hasSIMD128())
+#if CV_SIMD
+    int len0 = len & -v_uint16::nlanes, blockSize0 = (1 << 15), blockSize;
+
+    while (i < len0)
     {
-        int len0 = len & -8, blockSize0 = (1 << 15), blockSize;
+        blockSize = std::min(len0 - i, blockSize0);
+        v_int32 v_sum = vx_setzero_s32();
+        const int cWidth = v_uint16::nlanes;
 
-        while (i < len0)
+        int j = 0;
+        for (; j <= blockSize - cWidth * 2; j += cWidth * 2)
         {
-            blockSize = std::min(len0 - i, blockSize0);
-            v_int32x4 v_sum = v_setzero_s32();
-            const int cWidth = v_uint16x8::nlanes;
+            v_uint16 v_src10, v_src20, v_src11, v_src21;
+            v_expand(vx_load(src1 + j), v_src10, v_src11);
+            v_expand(vx_load(src2 + j), v_src20, v_src21);
 
-            int j = 0;
-            for (; j <= blockSize - cWidth * 2; j += cWidth * 2)
-            {
-                v_uint16x8 v_src10, v_src20, v_src11, v_src21;
-                v_expand(v_load(src1 + j), v_src10, v_src11);
-                v_expand(v_load(src2 + j), v_src20, v_src21);
-
-                v_sum += v_dotprod(v_reinterpret_as_s16(v_src10), v_reinterpret_as_s16(v_src20));
-                v_sum += v_dotprod(v_reinterpret_as_s16(v_src11), v_reinterpret_as_s16(v_src21));
-            }
-
-            for (; j <= blockSize - cWidth; j += cWidth)
-            {
-                v_int16x8 v_src10 = v_reinterpret_as_s16(v_load_expand(src1 + j));
-                v_int16x8 v_src20 = v_reinterpret_as_s16(v_load_expand(src2 + j));
-
-                v_sum += v_dotprod(v_src10, v_src20);
-            }
-            r += (double)v_reduce_sum(v_sum);
-
-            src1 += blockSize;
-            src2 += blockSize;
-            i += blockSize;
+            v_sum += v_dotprod(v_reinterpret_as_s16(v_src10), v_reinterpret_as_s16(v_src20));
+            v_sum += v_dotprod(v_reinterpret_as_s16(v_src11), v_reinterpret_as_s16(v_src21));
         }
+
+        for (; j <= blockSize - cWidth; j += cWidth)
+        {
+            v_int16 v_src10 = v_reinterpret_as_s16(vx_load_expand(src1 + j));
+            v_int16 v_src20 = v_reinterpret_as_s16(vx_load_expand(src2 + j));
+
+            v_sum += v_dotprod(v_src10, v_src20);
+        }
+        r += (double)v_reduce_sum(v_sum);
+
+        src1 += blockSize;
+        src2 += blockSize;
+        i += blockSize;
     }
+    vx_cleanup();
 #elif CV_NEON
     if( cv::checkHardwareSupport(CV_CPU_NEON) )
     {
@@ -3113,42 +3095,40 @@ static double dotProd_8s(const schar* src1, const schar* src2, int len)
     double r = 0.0;
     int i = 0;
 
-#if CV_SIMD128
-    if (hasSIMD128())
+#if CV_SIMD
+    int len0 = len & -v_int16::nlanes, blockSize0 = (1 << 14), blockSize;
+
+    while (i < len0)
     {
-        int len0 = len & -8, blockSize0 = (1 << 14), blockSize;
+        blockSize = std::min(len0 - i, blockSize0);
+        v_int32 v_sum = vx_setzero_s32();
+        const int cWidth = v_int16::nlanes;
 
-        while (i < len0)
+        int j = 0;
+        for (; j <= blockSize - cWidth * 2; j += cWidth * 2)
         {
-            blockSize = std::min(len0 - i, blockSize0);
-            v_int32x4 v_sum = v_setzero_s32();
-            const int cWidth = v_int16x8::nlanes;
+            v_int16 v_src10, v_src20, v_src11, v_src21;
+            v_expand(vx_load(src1 + j), v_src10, v_src11);
+            v_expand(vx_load(src2 + j), v_src20, v_src21);
 
-            int j = 0;
-            for (; j <= blockSize - cWidth * 2; j += cWidth * 2)
-            {
-                v_int16x8 v_src10, v_src20, v_src11, v_src21;
-                v_expand(v_load(src1 + j), v_src10, v_src11);
-                v_expand(v_load(src2 + j), v_src20, v_src21);
-
-                v_sum += v_dotprod(v_src10, v_src20);
-                v_sum += v_dotprod(v_src11, v_src21);
-            }
-
-            for (; j <= blockSize - cWidth; j += cWidth)
-            {
-                v_int16x8 v_src10 = v_load_expand(src1 + j);
-                v_int16x8 v_src20 = v_load_expand(src2 + j);
-
-                v_sum += v_dotprod(v_src10, v_src20);
-            }
-            r += (double)v_reduce_sum(v_sum);
-
-            src1 += blockSize;
-            src2 += blockSize;
-            i += blockSize;
+            v_sum += v_dotprod(v_src10, v_src20);
+            v_sum += v_dotprod(v_src11, v_src21);
         }
+
+        for (; j <= blockSize - cWidth; j += cWidth)
+        {
+            v_int16 v_src10 = vx_load_expand(src1 + j);
+            v_int16 v_src20 = vx_load_expand(src2 + j);
+
+            v_sum += v_dotprod(v_src10, v_src20);
+        }
+        r += (double)v_reduce_sum(v_sum);
+
+        src1 += blockSize;
+        src2 += blockSize;
+        i += blockSize;
     }
+    vx_cleanup();
 #elif CV_NEON
     if( cv::checkHardwareSupport(CV_CPU_NEON) )
     {
@@ -3232,28 +3212,26 @@ static double dotProd_32f(const float* src1, const float* src2, int len)
 #endif
     int i = 0;
 
-#if CV_SIMD128
-    if (hasSIMD128())
+#if CV_SIMD
+    int len0 = len & -v_float32::nlanes, blockSize0 = (1 << 13), blockSize;
+
+    while (i < len0)
     {
-        int len0 = len & -4, blockSize0 = (1 << 13), blockSize;
+        blockSize = std::min(len0 - i, blockSize0);
+        v_float32 v_sum = vx_setzero_f32();
 
-        while (i < len0)
-        {
-            blockSize = std::min(len0 - i, blockSize0);
-            v_float32x4 v_sum = v_setzero_f32();
+        int j = 0;
+        int cWidth = v_float32::nlanes;
+        for (; j <= blockSize - cWidth; j += cWidth)
+            v_sum = v_muladd(vx_load(src1 + j), vx_load(src2 + j), v_sum);
 
-            int j = 0;
-            int cWidth = v_float32x4::nlanes;
-            for (; j <= blockSize - cWidth; j += cWidth)
-                v_sum = v_muladd(v_load(src1 + j), v_load(src2 + j), v_sum);
+        r += v_reduce_sum(v_sum);
 
-            r += v_reduce_sum(v_sum);
-
-            src1 += blockSize;
-            src2 += blockSize;
-            i += blockSize;
-        }
+        src1 += blockSize;
+        src2 += blockSize;
+        i += blockSize;
     }
+    vx_cleanup();
 #endif
     return r + dotProd_(src1, src2, len - i);
 }
@@ -3286,7 +3264,7 @@ static DotProdFunc getDotProdFunc(int depth)
 
 double Mat::dot(InputArray _mat) const
 {
-    CV_INSTRUMENT_REGION()
+    CV_INSTRUMENT_REGION();
 
     Mat mat = _mat.getMat();
     int cn = channels();

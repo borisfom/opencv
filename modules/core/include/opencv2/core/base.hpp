@@ -390,6 +390,8 @@ CV_EXPORTS CV_NORETURN void error(int _code, const String& _err, const char* _fu
 #define CV_Error(...) do { abort(); } while (0)
 #define CV_Error_( code, args ) do { cv::format args; abort(); } while (0)
 #define CV_Assert( expr ) do { if (!(expr)) abort(); } while (0)
+#define CV_ErrorNoReturn CV_Error
+#define CV_ErrorNoReturn_ CV_Error_
 
 #else // CV_STATIC_ANALYSIS
 
@@ -440,17 +442,17 @@ configurations while CV_DbgAssert is only retained in the Debug configuration.
 #endif
 
 #define CV_Assert_1 CV_Assert
-#define CV_Assert_2( expr1, expr2 ) CV_Assert_1(expr1); CV_Assert_1(expr2)
-#define CV_Assert_3( expr1, expr2, expr3 ) CV_Assert_2(expr1, expr2); CV_Assert_1(expr3)
-#define CV_Assert_4( expr1, expr2, expr3, expr4 ) CV_Assert_3(expr1, expr2, expr3); CV_Assert_1(expr4)
-#define CV_Assert_5( expr1, expr2, expr3, expr4, expr5 ) CV_Assert_4(expr1, expr2, expr3, expr4); CV_Assert_1(expr5)
-#define CV_Assert_6( expr1, expr2, expr3, expr4, expr5, expr6 ) CV_Assert_5(expr1, expr2, expr3, expr4, expr5); CV_Assert_1(expr6)
-#define CV_Assert_7( expr1, expr2, expr3, expr4, expr5, expr6, expr7 ) CV_Assert_6(expr1, expr2, expr3, expr4, expr5, expr6 ); CV_Assert_1(expr7)
-#define CV_Assert_8( expr1, expr2, expr3, expr4, expr5, expr6, expr7, expr8 ) CV_Assert_7(expr1, expr2, expr3, expr4, expr5, expr6, expr7 ); CV_Assert_1(expr8)
-#define CV_Assert_9( expr1, expr2, expr3, expr4, expr5, expr6, expr7, expr8, expr9 ) CV_Assert_8(expr1, expr2, expr3, expr4, expr5, expr6, expr7, expr8 ); CV_Assert_1(expr9)
-#define CV_Assert_10( expr1, expr2, expr3, expr4, expr5, expr6, expr7, expr8, expr9, expr10 ) CV_Assert_9(expr1, expr2, expr3, expr4, expr5, expr6, expr7, expr8, expr9 ); CV_Assert_1(expr10)
+#define CV_Assert_2( expr, ... ) CV_Assert_1(expr); __CV_EXPAND(CV_Assert_1( __VA_ARGS__ ))
+#define CV_Assert_3( expr, ... ) CV_Assert_1(expr); __CV_EXPAND(CV_Assert_2( __VA_ARGS__ ))
+#define CV_Assert_4( expr, ... ) CV_Assert_1(expr); __CV_EXPAND(CV_Assert_3( __VA_ARGS__ ))
+#define CV_Assert_5( expr, ... ) CV_Assert_1(expr); __CV_EXPAND(CV_Assert_4( __VA_ARGS__ ))
+#define CV_Assert_6( expr, ... ) CV_Assert_1(expr); __CV_EXPAND(CV_Assert_5( __VA_ARGS__ ))
+#define CV_Assert_7( expr, ... ) CV_Assert_1(expr); __CV_EXPAND(CV_Assert_6( __VA_ARGS__ ))
+#define CV_Assert_8( expr, ... ) CV_Assert_1(expr); __CV_EXPAND(CV_Assert_7( __VA_ARGS__ ))
+#define CV_Assert_9( expr, ... ) CV_Assert_1(expr); __CV_EXPAND(CV_Assert_8( __VA_ARGS__ ))
+#define CV_Assert_10( expr, ... ) CV_Assert_1(expr); __CV_EXPAND(CV_Assert_9( __VA_ARGS__ ))
 
-#define CV_Assert_N(...) do { __CV_CAT(CV_Assert_, __CV_VA_NUM_ARGS(__VA_ARGS__)) (__VA_ARGS__); } while(0)
+#define CV_Assert_N(...) do { __CV_EXPAND(__CV_CAT(CV_Assert_, __CV_VA_NUM_ARGS(__VA_ARGS__)) (__VA_ARGS__)); } while(0)
 
 //! @endcond
 
@@ -467,7 +469,7 @@ configurations while CV_DbgAssert is only retained in the Debug configuration.
  */
 struct CV_EXPORTS Hamming
 {
-    enum { normType = NORM_HAMMING };
+    static const NormTypes normType = NORM_HAMMING;
     typedef unsigned char ValueType;
     typedef int ResultType;
 

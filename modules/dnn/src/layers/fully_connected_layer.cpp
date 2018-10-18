@@ -96,12 +96,6 @@ public:
             biasMat = blobs[1] = blobs[1].reshape(1, 1);
         else
             biasMat = Mat::zeros(1, numOutput, weightsMat.type());
-
-#ifdef HAVE_OPENCL
-        size_t n = blobs.size();
-        umat_blobs.resize(n);
-        for (int i = 0; i < n; i++) umat_blobs[i] = blobs[i].getUMat(ACCESS_READ);
-#endif
     }
 
     bool getMemoryShapes(const std::vector<MatShape> &inputs,
@@ -273,9 +267,11 @@ public:
     };
 
 #ifdef HAVE_OPENCL
-    void finalize(const std::vector<Mat*> &inputs, std::vector<Mat> &outputs) CV_OVERRIDE
+    virtual void finalize(InputArrayOfArrays, OutputArrayOfArrays) CV_OVERRIDE
     {
         innerProductOp.release();
+        umat_blobs.clear();
+        half_blobs.clear();
     }
 
     bool forward_ocl(InputArrayOfArrays inps, OutputArrayOfArrays outs, InputArrayOfArrays internals)
@@ -288,13 +284,17 @@ public:
         outs.getUMatVector(outputs);
 
         int axisCan = clamp(axis, inputs[0].dims);
-        int numOutput = umat_blobs[0].size[0];
-        int innerSize = umat_blobs[0].size[1];
+        int numOutput = blobs[0].size[0];
+        int innerSize = blobs[0].size[1];
         int outerSize = total(shape(inputs[0]), 0, axisCan);
         bool ret = true;
 
         if (innerProductOp.empty())
         {
+            size_t n = blobs.size();
+            umat_blobs.resize(n);
+            for (int i = 0; i < n; i++) blobs[i].copyTo(umat_blobs[i]);
+
             OCL4DNNInnerProductConfig config;
             config.num_output = numOutput;
             config.bias_term = bias;
@@ -389,24 +389,25 @@ public:
         CV_TRACE_FUNCTION();
         CV_TRACE_ARG_VALUE(name, "name", name.c_str());
 
-        CV_OCL_RUN(IS_DNN_OPENCL_TARGET(preferableTarget) &&
-                   OCL_PERFORMANCE_CHECK(ocl::Device::getDefault().isIntel()),
+        CV_OCL_RUN(IS_DNN_OPENCL_TARGET(preferableTarget),
                    forward_ocl(inputs_arr, outputs_arr, internals_arr))
 
-        Layer::forward_fallback(inputs_arr, outputs_arr, internals_arr);
-    }
+        if (inputs_arr.depth() == CV_16S)
+        {
+            forward_fallback(inputs_arr, outputs_arr, internals_arr);
+            return;
+        }
 
-    void forward(std::vector<Mat*> &input, std::vector<Mat> &output, std::vector<Mat> &) CV_OVERRIDE
-    {
-        CV_TRACE_FUNCTION();
-        CV_TRACE_ARG_VALUE(name, "name", name.c_str());
+        std::vector<Mat> input, output;
+        inputs_arr.getMatVector(input);
+        outputs_arr.getMatVector(output);
 
-        int axisCan = clamp(axis, input[0]->dims);
-        int outerSize = input[0]->total(0, axisCan);
+        int axisCan = clamp(axis, input[0].dims);
+        int outerSize = input[0].total(0, axisCan);
 
         for (size_t i = 0; i < input.size(); i++)
         {
-            Mat srcMat = input[i]->reshape(1, outerSize);
+            Mat srcMat = input[i].reshape(1, outerSize);
             Mat dstMat = output[i].reshape(1, outerSize);
 
             const int nstripes = getNumThreads();
@@ -459,7 +460,7 @@ public:
     virtual int64 getFLOPS(const std::vector<MatShape> &inputs,
                            const std::vector<MatShape> &outputs) const CV_OVERRIDE
     {
-        (void)inputs; // suppress unused variable warning
+        CV_UNUSED(inputs); // suppress unused variable warning
         long flops = 0;
 
         int innerSize = blobs[0].size[1];

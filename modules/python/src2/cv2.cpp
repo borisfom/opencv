@@ -1,4 +1,5 @@
-#if defined(_MSC_VER) && (_MSC_VER >= 1800)
+//warning number '5033' not a valid compiler warning in vc12
+#if defined(_MSC_VER) && (_MSC_VER > 1800)
 // eliminating duplicated round() declaration
 #define HAVE_ROUND 1
 #pragma warning(push)
@@ -6,9 +7,25 @@
 #endif
 #include <math.h>
 #include <Python.h>
-#if defined(_MSC_VER) && (_MSC_VER >= 1800)
+#if defined(_MSC_VER) && (_MSC_VER > 1800)
 #pragma warning(pop)
 #endif
+
+#include <type_traits>  // std::enable_if
+
+template<typename T, class TEnable = void>  // TEnable is used for SFINAE checks
+struct PyOpenCV_Converter
+{
+    //static inline bool to(PyObject* obj, T& p, const char* name);
+    //static inline PyObject* from(const T& src);
+};
+
+template<typename T> static
+bool pyopencv_to(PyObject* obj, T& p, const char* name = "<unknown>") { return PyOpenCV_Converter<T>::to(obj, p, name); }
+
+template<typename T> static
+PyObject* pyopencv_from(const T& src) { return PyOpenCV_Converter<T>::from(src); }
+
 
 #define CV_PY_FN_WITH_KW_(fn, flags) (PyCFunction)(void*)(PyCFunctionWithKeywords)(fn), (flags) | METH_VARARGS | METH_KEYWORDS
 #define CV_PY_FN_NOARGS_(fn, flags) (PyCFunction)(fn), (flags) | METH_NOARGS
@@ -28,8 +45,6 @@
 #endif
 
 #define CV_PY_TO_CLASS(TYPE)                                                                          \
-template<> bool pyopencv_to(PyObject* dst, Ptr<TYPE>& src, const char* name);                         \
-                                                                                                      \
 template<>                                                                                            \
 bool pyopencv_to(PyObject* dst, TYPE& src, const char* name)                                          \
 {                                                                                                     \
@@ -43,8 +58,6 @@ bool pyopencv_to(PyObject* dst, TYPE& src, const char* name)                    
 }
 
 #define CV_PY_FROM_CLASS(TYPE)                                                                        \
-template<> PyObject* pyopencv_from(const Ptr<TYPE>& src);                                             \
-                                                                                                      \
 template<>                                                                                            \
 PyObject* pyopencv_from(const TYPE& src)                                                              \
 {                                                                                                     \
@@ -55,8 +68,6 @@ PyObject* pyopencv_from(const TYPE& src)                                        
 }
 
 #define CV_PY_TO_CLASS_PTR(TYPE)                                                                      \
-template<> bool pyopencv_to(PyObject* dst, Ptr<TYPE>& src, const char* name);                         \
-                                                                                                      \
 template<>                                                                                            \
 bool pyopencv_to(PyObject* dst, TYPE*& src, const char* name)                                         \
 {                                                                                                     \
@@ -70,22 +81,18 @@ bool pyopencv_to(PyObject* dst, TYPE*& src, const char* name)                   
 }
 
 #define CV_PY_FROM_CLASS_PTR(TYPE)                                                                    \
-template<> PyObject* pyopencv_from(const Ptr<TYPE>& src);                                             \
-                                                                                                      \
 static PyObject* pyopencv_from(TYPE*& src)                                                            \
 {                                                                                                     \
     return pyopencv_from(Ptr<TYPE>(src));                                                             \
 }
 
 #define CV_PY_TO_ENUM(TYPE)                                                                           \
-template<> bool pyopencv_to(PyObject* dst, std::underlying_type<TYPE>::type& src, const char* name);  \
-                                                                                                      \
 template<>                                                                                            \
 bool pyopencv_to(PyObject* dst, TYPE& src, const char* name)                                          \
 {                                                                                                     \
     if (!dst || dst == Py_None)                                                                       \
         return true;                                                                                  \
-    std::underlying_type<TYPE>::type underlying;                                                      \
+    std::underlying_type<TYPE>::type underlying = 0;                                                  \
                                                                                                       \
     if (!pyopencv_to(dst, underlying, name)) return false;                                            \
     src = static_cast<TYPE>(underlying);                                                              \
@@ -93,8 +100,6 @@ bool pyopencv_to(PyObject* dst, TYPE& src, const char* name)                    
 }
 
 #define CV_PY_FROM_ENUM(TYPE)                                                                         \
-template<> PyObject* pyopencv_from(const std::underlying_type<TYPE>::type& src);                      \
-                                                                                                      \
 template<>                                                                                            \
 PyObject* pyopencv_from(const TYPE& src)                                                              \
 {                                                                                                     \
@@ -247,7 +252,7 @@ public:
         return u;
     }
 
-    UMatData* allocate(int dims0, const int* sizes, int type, void* data, size_t* step, int flags, UMatUsageFlags usageFlags) const CV_OVERRIDE
+    UMatData* allocate(int dims0, const int* sizes, int type, void* data, size_t* step, AccessFlag flags, UMatUsageFlags usageFlags) const CV_OVERRIDE
     {
         if( data != 0 )
         {
@@ -276,7 +281,7 @@ public:
         return allocate(o, dims0, sizes, type, step);
     }
 
-    bool allocate(UMatData* u, int accessFlags, UMatUsageFlags usageFlags) const CV_OVERRIDE
+    bool allocate(UMatData* u, AccessFlag accessFlags, UMatUsageFlags usageFlags) const CV_OVERRIDE
     {
         return stdAllocator->allocate(u, accessFlags, usageFlags);
     }
@@ -301,12 +306,6 @@ public:
 
 NumpyAllocator g_numpyAllocator;
 
-
-template<typename T> static
-bool pyopencv_to(PyObject* obj, T& p, const char* name = "<unknown>");
-
-template<typename T> static
-PyObject* pyopencv_from(const T& src);
 
 enum { ARG_NONE = 0, ARG_MAT = 1, ARG_SCALAR = 2 };
 
@@ -514,15 +513,6 @@ bool pyopencv_to(PyObject* o, Matx<_Tp, m, n>& mx, const char* name)
     return pyopencv_to(o, mx, ArgInfo(name, 0));
 }
 
-template <typename T>
-bool pyopencv_to(PyObject *o, Ptr<T>& p, const char *name)
-{
-    if (!o || o == Py_None)
-        return true;
-    p = makePtr<T>();
-    return pyopencv_to(o, *p, name);
-}
-
 template<>
 PyObject* pyopencv_from(const Mat& m)
 {
@@ -547,17 +537,27 @@ PyObject* pyopencv_from(const Matx<_Tp, m, n>& matx)
 }
 
 template<typename T>
-PyObject* pyopencv_from(const cv::Ptr<T>& p)
+struct PyOpenCV_Converter< cv::Ptr<T> >
 {
-    if (!p)
-        Py_RETURN_NONE;
-    return pyopencv_from(*p);
-}
+    static PyObject* from(const cv::Ptr<T>& p)
+    {
+        if (!p)
+            Py_RETURN_NONE;
+        return pyopencv_from(*p);
+    }
+    static bool to(PyObject *o, Ptr<T>& p, const char *name)
+    {
+        if (!o || o == Py_None)
+            return true;
+        p = makePtr<T>();
+        return pyopencv_to(o, *p, name);
+    }
+};
 
 template<>
 bool pyopencv_to(PyObject* obj, void*& ptr, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if (!obj || obj == Py_None)
         return true;
 
@@ -627,7 +627,7 @@ PyObject* pyopencv_from(const bool& value)
 template<>
 bool pyopencv_to(PyObject* obj, bool& value, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     int _val = PyObject_IsTrue(obj);
@@ -646,7 +646,7 @@ PyObject* pyopencv_from(const size_t& value)
 template<>
 bool pyopencv_to(PyObject* obj, size_t& value, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     value = (int)PyLong_AsUnsignedLong(obj);
@@ -662,7 +662,7 @@ PyObject* pyopencv_from(const int& value)
 template<>
 bool pyopencv_to(PyObject* obj, int& value, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     if(PyInt_Check(obj))
@@ -674,29 +674,31 @@ bool pyopencv_to(PyObject* obj, int& value, const char* name)
     return value != -1 || !PyErr_Occurred();
 }
 
-#if defined (_M_AMD64) || defined (__x86_64__)
-template<>
-PyObject* pyopencv_from(const unsigned int& value)
+// There is conflict between "size_t" and "unsigned int".
+// They are the same type on some 32-bit platforms.
+template<typename T>
+struct PyOpenCV_Converter
+    < T, typename std::enable_if< std::is_same<unsigned int, T>::value && !std::is_same<unsigned int, size_t>::value >::type >
 {
-    return PyLong_FromUnsignedLong(value);
-}
+    static inline PyObject* from(const unsigned int& value)
+    {
+        return PyLong_FromUnsignedLong(value);
+    }
 
-template<>
-
-bool pyopencv_to(PyObject* obj, unsigned int& value, const char* name)
-{
-    (void)name;
-    if(!obj || obj == Py_None)
-        return true;
-    if(PyInt_Check(obj))
-        value = (unsigned int)PyInt_AsLong(obj);
-    else if(PyLong_Check(obj))
-        value = (unsigned int)PyLong_AsLong(obj);
-    else
-        return false;
-    return value != (unsigned int)-1 || !PyErr_Occurred();
-}
-#endif
+    static inline bool to(PyObject* obj, unsigned int& value, const char* name)
+    {
+        CV_UNUSED(name);
+        if(!obj || obj == Py_None)
+            return true;
+        if(PyInt_Check(obj))
+            value = (unsigned int)PyInt_AsLong(obj);
+        else if(PyLong_Check(obj))
+            value = (unsigned int)PyLong_AsLong(obj);
+        else
+            return false;
+        return value != (unsigned int)-1 || !PyErr_Occurred();
+    }
+};
 
 template<>
 PyObject* pyopencv_from(const uchar& value)
@@ -707,7 +709,7 @@ PyObject* pyopencv_from(const uchar& value)
 template<>
 bool pyopencv_to(PyObject* obj, uchar& value, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     int ivalue = (int)PyInt_AsLong(obj);
@@ -724,7 +726,7 @@ PyObject* pyopencv_from(const double& value)
 template<>
 bool pyopencv_to(PyObject* obj, double& value, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     if(!!PyInt_CheckExact(obj))
@@ -743,7 +745,7 @@ PyObject* pyopencv_from(const float& value)
 template<>
 bool pyopencv_to(PyObject* obj, float& value, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     if(!!PyInt_CheckExact(obj))
@@ -768,7 +770,7 @@ PyObject* pyopencv_from(const String& value)
 template<>
 bool pyopencv_to(PyObject* obj, String& value, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     const char* str = PyString_AsString(obj);
@@ -781,7 +783,7 @@ bool pyopencv_to(PyObject* obj, String& value, const char* name)
 template<>
 bool pyopencv_to(PyObject* obj, Size& sz, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     return PyArg_ParseTuple(obj, "ii", &sz.width, &sz.height) > 0;
@@ -796,7 +798,7 @@ PyObject* pyopencv_from(const Size& sz)
 template<>
 bool pyopencv_to(PyObject* obj, Size_<float>& sz, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     return PyArg_ParseTuple(obj, "ff", &sz.width, &sz.height) > 0;
@@ -811,7 +813,7 @@ PyObject* pyopencv_from(const Size_<float>& sz)
 template<>
 bool pyopencv_to(PyObject* obj, Rect& r, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     return PyArg_ParseTuple(obj, "iiii", &r.x, &r.y, &r.width, &r.height) > 0;
@@ -826,7 +828,7 @@ PyObject* pyopencv_from(const Rect& r)
 template<>
 bool pyopencv_to(PyObject* obj, Rect2d& r, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     return PyArg_ParseTuple(obj, "dddd", &r.x, &r.y, &r.width, &r.height) > 0;
@@ -841,7 +843,7 @@ PyObject* pyopencv_from(const Rect2d& r)
 template<>
 bool pyopencv_to(PyObject* obj, Range& r, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     if(PyObject_Size(obj) == 0)
@@ -861,7 +863,7 @@ PyObject* pyopencv_from(const Range& r)
 template<>
 bool pyopencv_to(PyObject* obj, Point& p, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     if(!!PyComplex_CheckExact(obj))
@@ -877,7 +879,7 @@ bool pyopencv_to(PyObject* obj, Point& p, const char* name)
 template<>
 bool pyopencv_to(PyObject* obj, Point2f& p, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     if(!!PyComplex_CheckExact(obj))
@@ -893,7 +895,7 @@ bool pyopencv_to(PyObject* obj, Point2f& p, const char* name)
 template<>
 bool pyopencv_to(PyObject* obj, Point2d& p, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     if(!!PyComplex_CheckExact(obj))
@@ -909,7 +911,7 @@ bool pyopencv_to(PyObject* obj, Point2d& p, const char* name)
 template<>
 bool pyopencv_to(PyObject* obj, Point3f& p, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     return PyArg_ParseTuple(obj, "fff", &p.x, &p.y, &p.z) > 0;
@@ -918,7 +920,7 @@ bool pyopencv_to(PyObject* obj, Point3f& p, const char* name)
 template<>
 bool pyopencv_to(PyObject* obj, Point3d& p, const char* name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj || obj == Py_None)
         return true;
     return PyArg_ParseTuple(obj, "ddd", &p.x, &p.y, &p.z) > 0;
@@ -944,7 +946,7 @@ PyObject* pyopencv_from(const Point3f& p)
 
 static bool pyopencv_to(PyObject* obj, Vec4d& v, ArgInfo info)
 {
-    (void)info;
+    CV_UNUSED(info);
     if (!obj)
         return true;
     return PyArg_ParseTuple(obj, "dddd", &v[0], &v[1], &v[2], &v[3]) > 0;
@@ -957,7 +959,7 @@ bool pyopencv_to(PyObject* obj, Vec4d& v, const char* name)
 
 static bool pyopencv_to(PyObject* obj, Vec4f& v, ArgInfo info)
 {
-    (void)info;
+    CV_UNUSED(info);
     if (!obj)
         return true;
     return PyArg_ParseTuple(obj, "ffff", &v[0], &v[1], &v[2], &v[3]) > 0;
@@ -970,7 +972,7 @@ bool pyopencv_to(PyObject* obj, Vec4f& v, const char* name)
 
 static bool pyopencv_to(PyObject* obj, Vec4i& v, ArgInfo info)
 {
-    (void)info;
+    CV_UNUSED(info);
     if (!obj)
         return true;
     return PyArg_ParseTuple(obj, "iiii", &v[0], &v[1], &v[2], &v[3]) > 0;
@@ -983,7 +985,7 @@ bool pyopencv_to(PyObject* obj, Vec4i& v, const char* name)
 
 static bool pyopencv_to(PyObject* obj, Vec3d& v, ArgInfo info)
 {
-    (void)info;
+    CV_UNUSED(info);
     if (!obj)
         return true;
     return PyArg_ParseTuple(obj, "ddd", &v[0], &v[1], &v[2]) > 0;
@@ -996,7 +998,7 @@ bool pyopencv_to(PyObject* obj, Vec3d& v, const char* name)
 
 static bool pyopencv_to(PyObject* obj, Vec3f& v, ArgInfo info)
 {
-    (void)info;
+    CV_UNUSED(info);
     if (!obj)
         return true;
     return PyArg_ParseTuple(obj, "fff", &v[0], &v[1], &v[2]) > 0;
@@ -1009,7 +1011,7 @@ bool pyopencv_to(PyObject* obj, Vec3f& v, const char* name)
 
 static bool pyopencv_to(PyObject* obj, Vec3i& v, ArgInfo info)
 {
-    (void)info;
+    CV_UNUSED(info);
     if (!obj)
         return true;
     return PyArg_ParseTuple(obj, "iii", &v[0], &v[1], &v[2]) > 0;
@@ -1022,7 +1024,7 @@ bool pyopencv_to(PyObject* obj, Vec3i& v, const char* name)
 
 static bool pyopencv_to(PyObject* obj, Vec2d& v, ArgInfo info)
 {
-    (void)info;
+    CV_UNUSED(info);
     if (!obj)
         return true;
     return PyArg_ParseTuple(obj, "dd", &v[0], &v[1]) > 0;
@@ -1035,7 +1037,7 @@ bool pyopencv_to(PyObject* obj, Vec2d& v, const char* name)
 
 static bool pyopencv_to(PyObject* obj, Vec2f& v, ArgInfo info)
 {
-    (void)info;
+    CV_UNUSED(info);
     if (!obj)
         return true;
     return PyArg_ParseTuple(obj, "ff", &v[0], &v[1]) > 0;
@@ -1048,7 +1050,7 @@ bool pyopencv_to(PyObject* obj, Vec2f& v, const char* name)
 
 static bool pyopencv_to(PyObject* obj, Vec2i& v, ArgInfo info)
 {
-    (void)info;
+    CV_UNUSED(info);
     if (!obj)
         return true;
     return PyArg_ParseTuple(obj, "ii", &v[0], &v[1]) > 0;
@@ -1390,7 +1392,7 @@ template<> struct pyopencvVecConverter<RotatedRect>
 template<>
 bool pyopencv_to(PyObject *obj, TermCriteria& dst, const char *name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj)
         return true;
     return PyArg_ParseTuple(obj, "iid", &dst.type, &dst.maxCount, &dst.epsilon) > 0;
@@ -1405,7 +1407,7 @@ PyObject* pyopencv_from(const TermCriteria& src)
 template<>
 bool pyopencv_to(PyObject *obj, RotatedRect& dst, const char *name)
 {
-    (void)name;
+    CV_UNUSED(name);
     if(!obj)
         return true;
     return PyArg_ParseTuple(obj, "(ff)(ff)f", &dst.center.x, &dst.center.y, &dst.size.width, &dst.size.height, &dst.angle) > 0;
@@ -1667,6 +1669,7 @@ static int convert_to_char(PyObject *o, char *dst, const char *name = "no_name")
 #  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #endif
 
+#include "pyopencv_generated_enums.h"
 #include "pyopencv_custom_headers.h"
 #include "pyopencv_generated_types.h"
 #include "pyopencv_generated_funcs.h"

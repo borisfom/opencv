@@ -43,6 +43,7 @@
 
 #include "precomp.hpp"
 #include <iostream>
+#include <ostream>
 
 #include <opencv2/core/utils/configuration.private.hpp>
 #include <opencv2/core/utils/trace.private.hpp>
@@ -68,6 +69,8 @@ static bool param_dumpErrors = utils::getConfigurationParameterBool("OPENCV_DUMP
     false
 #endif
 );
+
+void* allocSingletonBuffer(size_t size) { return fastMalloc(size); }
 
 } // namespace cv
 
@@ -1594,18 +1597,26 @@ static TLSData<ThreadID>& getThreadIDTLS()
 } // namespace
 int utils::getThreadID() { return getThreadIDTLS().get()->id; }
 
-bool utils::getConfigurationParameterBool(const char* name, bool defaultValue)
+
+class ParseError
 {
-#ifdef NO_GETENV
-    const char* envValue = NULL;
-#else
-    const char* envValue = getenv(name);
-#endif
-    if (envValue == NULL)
+    std::string bad_value;
+public:
+    ParseError(const std::string bad_value_) :bad_value(bad_value_) {}
+    std::string toString(const std::string &param) const
     {
-        return defaultValue;
+        std::ostringstream out;
+        out << "Invalid value for parameter " << param << ": " << bad_value;
+        return out.str();
     }
-    cv::String value = envValue;
+};
+
+template <typename T>
+T parseOption(const std::string &);
+
+template<>
+inline bool parseOption(const std::string & value)
+{
     if (value == "1" || value == "True" || value == "true" || value == "TRUE")
     {
         return true;
@@ -1614,22 +1625,12 @@ bool utils::getConfigurationParameterBool(const char* name, bool defaultValue)
     {
         return false;
     }
-    CV_Error(cv::Error::StsBadArg, cv::format("Invalid value for %s parameter: %s", name, value.c_str()));
+    throw ParseError(value);
 }
 
-
-size_t utils::getConfigurationParameterSizeT(const char* name, size_t defaultValue)
+template<>
+inline size_t parseOption(const std::string &value)
 {
-#ifdef NO_GETENV
-    const char* envValue = NULL;
-#else
-    const char* envValue = getenv(name);
-#endif
-    if (envValue == NULL)
-    {
-        return defaultValue;
-    }
-    cv::String value = envValue;
     size_t pos = 0;
     for (; pos < value.size(); pos++)
     {
@@ -1645,17 +1646,80 @@ size_t utils::getConfigurationParameterSizeT(const char* name, size_t defaultVal
         return v * 1024 * 1024;
     else if (suffixStr == "KB" || suffixStr == "Kb" || suffixStr == "kb")
         return v * 1024;
-    CV_Error(cv::Error::StsBadArg, cv::format("Invalid value for %s parameter: %s", name, value.c_str()));
+    throw ParseError(value);
+}
+
+template<>
+inline cv::String parseOption(const std::string &value)
+{
+    return value;
+}
+
+template<>
+inline utils::Paths parseOption(const std::string &value)
+{
+    utils::Paths result;
+#ifdef _WIN32
+    const char sep = ';';
+#else
+    const char sep = ':';
+#endif
+    size_t start_pos = 0;
+    while (start_pos != std::string::npos)
+    {
+        const size_t pos = value.find(sep, start_pos);
+        const std::string one_piece(value, start_pos, pos == std::string::npos ? pos : pos - start_pos);
+        if (!one_piece.empty())
+            result.push_back(one_piece);
+        start_pos = pos == std::string::npos ? pos : pos + 1;
+    }
+    return result;
+}
+
+static inline const char * envRead(const char * name)
+{
+#ifdef NO_GETENV
+    CV_UNUSED(name);
+    return NULL;
+#else
+    return getenv(name);
+#endif
+}
+
+template<typename T>
+inline T read(const std::string & k, const T & defaultValue)
+{
+    try
+    {
+        const char * res = envRead(k.c_str());
+        if (res)
+            return parseOption<T>(std::string(res));
+    }
+    catch (const ParseError &err)
+    {
+        CV_Error(cv::Error::StsBadArg, err.toString(k));
+    }
+    return defaultValue;
+}
+
+bool utils::getConfigurationParameterBool(const char* name, bool defaultValue)
+{
+    return read<bool>(name, defaultValue);
+}
+
+size_t utils::getConfigurationParameterSizeT(const char* name, size_t defaultValue)
+{
+    return read<size_t>(name, defaultValue);
 }
 
 cv::String utils::getConfigurationParameterString(const char* name, const char* defaultValue)
 {
-#ifdef NO_GETENV
-    const char* envValue = NULL;
-#else
-    const char* envValue = getenv(name);
-#endif
-    return envValue ? cv::String(envValue) : (defaultValue ? cv::String(defaultValue) : cv::String());
+    return read<cv::String>(name, defaultValue ? cv::String(defaultValue) : cv::String());
+}
+
+utils::Paths utils::getConfigurationParameterPaths(const char* name, const utils::Paths &defaultValue)
+{
+    return read<utils::Paths>(name, defaultValue);
 }
 
 
@@ -1768,7 +1832,7 @@ FLAGS getFlags()
 
 NodeData::NodeData(const char* funName, const char* fileName, int lineNum, void* retAddress, bool alwaysExpand, cv::instr::TYPE instrType, cv::instr::IMPL implType)
 {
-    m_funName       = funName;
+    m_funName       = funName ? cv::String(funName) : cv::String();  // std::string doesn't accept NULL
     m_instrType     = instrType;
     m_implType      = implType;
     m_fileName      = fileName;
@@ -2141,7 +2205,7 @@ void setUseIPP(bool flag)
 #ifdef HAVE_IPP
     data->useIPP = (getIPPSingleton().useIPP)?flag:false;
 #else
-    (void)flag;
+    CV_UNUSED(flag);
     data->useIPP = false;
 #endif
 }
@@ -2166,7 +2230,7 @@ void setUseIPP_NE(bool flag)
 #ifdef HAVE_IPP
     data->useIPP_NE = (getIPPSingleton().useIPP_NE)?flag:false;
 #else
-    (void)flag;
+    CV_UNUSED(flag);
     data->useIPP_NE = false;
 #endif
 }

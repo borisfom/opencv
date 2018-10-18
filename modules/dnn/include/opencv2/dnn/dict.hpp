@@ -95,7 +95,7 @@ struct CV_EXPORTS_W DictValue
 
 private:
 
-    int type;
+    Param type;
 
     union
     {
@@ -105,7 +105,7 @@ private:
         void *pv;
     };
 
-    DictValue(int _type, void *_p) : type(_type), pv(_p) {}
+    DictValue(Param _type, void *_p) : type(_type), pv(_p) {}
     void release();
 };
 
@@ -140,6 +140,9 @@ public:
     //! Sets new @p value for the @p key, or adds new key-value pair into the dictionary.
     template<typename T>
     const T &set(const String &key, const T &value);
+
+    //! Erase @p key from the dictionary.
+    void erase(const String &key);
 
     friend std::ostream &operator<<(std::ostream &stream, const Dict &dict);
 

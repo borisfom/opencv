@@ -93,18 +93,12 @@ TEST_P(Convolution, Accuracy)
     Backend backendId = get<0>(get<7>(GetParam()));
     Target targetId = get<1>(get<7>(GetParam()));
 
+#if defined(INF_ENGINE_RELEASE) && INF_ENGINE_RELEASE < 2018030000
     if (backendId == DNN_BACKEND_INFERENCE_ENGINE && targetId == DNN_TARGET_MYRIAD)
-        throw SkipTestException("");
+        throw SkipTestException("Test is enabled starts from OpenVINO 2018R3");
+#endif
 
     bool skipCheck = false;
-    if (cvtest::skipUnstableTests && backendId == DNN_BACKEND_OPENCV &&
-        (targetId == DNN_TARGET_OPENCL || targetId == DNN_TARGET_OPENCL_FP16) &&
-        (
-            (kernel == Size(3, 1) && stride == Size(1, 1) && pad == Size(0, 1)) ||
-            (stride.area() > 1 && !(pad.width == 0 && pad.height == 0))
-        )
-    )
-        skipCheck = true;
 
     int sz[] = {outChannels, inChannels / group, kernel.height, kernel.width};
     Mat weights(4, &sz[0], CV_32F);
@@ -274,7 +268,8 @@ TEST_P(AvePooling, Accuracy)
     Size stride = get<3>(GetParam());
     Backend backendId = get<0>(get<4>(GetParam()));
     Target targetId = get<1>(get<4>(GetParam()));
-    if (backendId == DNN_BACKEND_INFERENCE_ENGINE && targetId == DNN_TARGET_MYRIAD)
+    if (backendId == DNN_BACKEND_INFERENCE_ENGINE && targetId == DNN_TARGET_MYRIAD &&
+        stride == Size(3, 2) && kernel == Size(3, 3) && outSize != Size(1, 1))
         throw SkipTestException("");
 
     const int inWidth = (outSize.width - 1) * stride.width + kernel.width;

@@ -123,7 +123,7 @@ struct VZeroUpperGuard {
 #endif
     inline ~VZeroUpperGuard() { _mm256_zeroupper(); }
 };
-#define __CV_AVX_GUARD VZeroUpperGuard __vzeroupper_guard; (void)__vzeroupper_guard;
+#define __CV_AVX_GUARD VZeroUpperGuard __vzeroupper_guard; CV_UNUSED(__vzeroupper_guard);
 #endif
 
 #ifdef __CV_AVX_GUARD

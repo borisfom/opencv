@@ -187,16 +187,19 @@ public:
         CV_OCL_RUN(IS_DNN_OPENCL_TARGET(this->preferableTarget),
                    func.applyOCL(inputs_arr, outputs_arr, internals_arr))
 
-        Layer::forward_fallback(inputs_arr, outputs_arr, internals_arr);
-    }
+        if (inputs_arr.depth() == CV_16S)
+        {
+            Layer::forward_fallback(inputs_arr, outputs_arr, internals_arr);
+            return;
+        }
 
-    void forward(std::vector<Mat*> &inputs, std::vector<Mat> &outputs, std::vector<Mat> &internals) CV_OVERRIDE
-    {
-        CV_TRACE_FUNCTION();
+        std::vector<Mat> inputs, outputs;
+        inputs_arr.getMatVector(inputs);
+        outputs_arr.getMatVector(outputs);
 
         for (size_t i = 0; i < inputs.size(); i++)
         {
-            const Mat &src = *inputs[i];
+            const Mat &src = inputs[i];
             Mat &dst = outputs[i];
             CV_Assert(src.size == dst.size && src.type() == dst.type() &&
                       src.isContinuous() && dst.isContinuous() && src.type() == CV_32F);
@@ -966,11 +969,12 @@ struct ChannelsPReLUFunctor
 {
     typedef ChannelsPReLULayer Layer;
     Mat scale;
+#ifdef HAVE_OPENCL
     UMat scale_umat;
+#endif
 
     explicit ChannelsPReLUFunctor(const Mat& scale_=Mat()) : scale(scale_)
     {
-        scale_umat = scale.getUMat(ACCESS_READ);
     }
 
     bool supportBackend(int backendId, int)
@@ -1018,6 +1022,9 @@ struct ChannelsPReLUFunctor
 #ifdef HAVE_OPENCL
     bool applyOCL(InputArrayOfArrays inps, OutputArrayOfArrays outs, OutputArrayOfArrays internals)
     {
+        if (scale_umat.empty())
+            scale.copyTo(scale_umat);
+
         std::vector<UMat> inputs;
         std::vector<UMat> outputs;
 

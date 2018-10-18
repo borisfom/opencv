@@ -307,7 +307,7 @@ TEST_P(Reproducibility_SqueezeNet_v1_1, Accuracy)
     net.setPreferableBackend(DNN_BACKEND_OPENCV);
     net.setPreferableTarget(targetId);
 
-    Mat input = blobFromImage(imread(_tf("googlenet_0.png")), 1.0f, Size(227,227), Scalar(), false);
+    Mat input = blobFromImage(imread(_tf("googlenet_0.png")), 1.0f, Size(227,227), Scalar(), false, true);
     ASSERT_TRUE(!input.empty());
 
     Mat out;
@@ -391,7 +391,7 @@ TEST_P(Test_Caffe_nets, Colorization)
     Mat out = net.forward();
 
     // Reference output values are in range [-29.1, 69.5]
-    const double l1 = (target == DNN_TARGET_OPENCL_FP16 || target == DNN_TARGET_MYRIAD) ? 0.21 : 4e-4;
+    const double l1 = (target == DNN_TARGET_OPENCL_FP16 || target == DNN_TARGET_MYRIAD) ? 0.25 : 4e-4;
     const double lInf = (target == DNN_TARGET_OPENCL_FP16 || target == DNN_TARGET_MYRIAD) ? 5.3 : 3e-3;
     normAssert(out, ref, "", l1, lInf);
 }
@@ -403,7 +403,7 @@ TEST_P(Test_Caffe_nets, DenseNet_121)
     const string model = findDataFile("dnn/DenseNet_121.caffemodel", false);
 
     Mat inp = imread(_tf("dog416.png"));
-    inp = blobFromImage(inp, 1.0 / 255, Size(224, 224));
+    inp = blobFromImage(inp, 1.0 / 255, Size(224, 224), Scalar(), true, true);
     Mat ref = blobFromNPY(_tf("densenet_121_output.npy"));
 
     Net net = readNetFromCaffe(proto, model);
@@ -452,6 +452,28 @@ TEST(Test_Caffe, multiple_inputs)
     Mat out = net.forward();
 
     normAssert(out, first_image + second_image);
+}
+
+TEST(Test_Caffe, shared_weights)
+{
+  const string proto = findDataFile("dnn/layers/shared_weights.prototxt", false);
+  const string model = findDataFile("dnn/layers/shared_weights.caffemodel", false);
+
+  Net net = readNetFromCaffe(proto, model);
+
+  Mat input_1 = (Mat_<float>(2, 2) << 0., 2., 4., 6.);
+  Mat input_2 = (Mat_<float>(2, 2) << 1., 3., 5., 7.);
+
+  Mat blob_1 = blobFromImage(input_1);
+  Mat blob_2 = blobFromImage(input_2);
+
+  net.setInput(blob_1, "input_1");
+  net.setInput(blob_2, "input_2");
+
+  Mat sum = net.forward();
+
+  EXPECT_EQ(sum.at<float>(0,0), 12.);
+  EXPECT_EQ(sum.at<float>(0,1), 16.);
 }
 
 typedef testing::TestWithParam<tuple<std::string, Target> > opencv_face_detector;
